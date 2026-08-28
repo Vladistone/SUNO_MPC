@@ -150,7 +150,7 @@ async function startServer() {
         } catch (syncErr) {
             console.log('[SYNC] Сбой разбора интерфейса:', syncErr.message);
         }
-		// Блок считывания MIDI CC контроллера:
+		// [TOUCH] Блок считывания активации контроллера:
         midiInput5.on('cc', async (msg) => {
             try {
                 if (msg.controller === 15 || msg.controller === 0) {
@@ -225,8 +225,7 @@ async function startServer() {
                     }
                 }
 
-                // В server_1.js, в блоке обработки движения фейдера
-                // Замените существующий блок на этот:
+                // [MOVE] блок обработки движения фейдера
 
                 if (msg.controller >= 32 && msg.controller <= 39) {
                     const trackId = msg.controller - 32;
