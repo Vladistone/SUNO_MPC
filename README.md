@@ -1,3 +1,5 @@
+# старая проектная система
+``` text
 SUNO_controller/
 ├── package.json
 ├── package-lock.json
@@ -23,3 +25,25 @@ SUNO_controller/
 └── tests/
     ├── studio_v1.test.js   # Тесты для проверки интерфейса 1.0
     └── studio_v2.test.js   # Тесты для проверки интерфейса 2.0
+```
+#новая модульная система
+```
+SUNO_MPC/
+├── src/
+│   ├── index.js
+│   ├── BrowserManager.js
+│   ├── GUIManager.js
+│   └── FeedbackLoop.js
+├── midi/
+│   ├── device-router.js
+│   ├── protocols/
+│   │   ├── abstract.js
+│   │   └── hui.js
+│   └── devices/
+│       └── ssl-nucleus-2.js
+├── utils/
+│   └── Logger.js
+├── config/
+│   └── selectors_v1.json
+└── package.json
+```

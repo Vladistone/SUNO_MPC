@@ -1,0 +1,359 @@
+// src/FeedbackLoop.js
+// Обратная связь: GUI → MIDI (синхронизация состояния)
+
+import Logger from '../utils/Logger.js';
+
+export default class FeedbackLoop {
+    constructor(page, deviceRouter, guiManager, options = {}) {
+        this.page = page;
+        this.deviceRouter = deviceRouter;
+        this.guiManager = guiManager;
+        this.logger = new Logger('[FEEDBACK]');
+        
+        this.options = {
+            interval: options.interval || 150,      // Интервал опроса (мс)
+            touchDelay: options.touchDelay || 50,   // Задержка после касания
+            maxTracks: options.maxTracks || 8,      // Максимальное число треков
+            ...options
+        };
+        
+        this.isRunning = false;
+        this.timerId = null;
+        this.lastState = {};
+        this.trackNames = {};
+        this.isTouched = false;
+        this.touchTimeout = null;
+        
+        // Состояние для отслеживания изменений
+        this.previousValues = {
+            volume: {},
+            mute: {},
+            solo: {}
+        };
+        
+        this.logger.log('✅ FeedbackLoop создан');
+    }
+
+    /**
+     * Запуск цикла обратной связи
+     */
+    start() {
+        if (this.isRunning) {
+            this.logger.warn('⚠️ FeedbackLoop уже запущен');
+            return;
+        }
+        
+        this.isRunning = true;
+        this.logger.log(`🔄 Запуск FeedbackLoop (интервал: ${this.options.interval}мс)`);
+        
+        // Первый запуск с небольшой задержкой
+        setTimeout(() => {
+            this._loop();
+        }, 500);
+    }
+
+    /**
+     * Остановка цикла обратной связи
+     */
+    stop() {
+        if (this.timerId) {
+            clearTimeout(this.timerId);
+            this.timerId = null;
+        }
+        
+        if (this.touchTimeout) {
+            clearTimeout(this.touchTimeout);
+            this.touchTimeout = null;
+        }
+        
+        this.isRunning = false;
+        this.logger.log('⏹️ FeedbackLoop остановлен');
+    }
+
+    /**
+     * Обработка касания фейдера (отключает обратную связь)
+     */
+    onTouch(channel) {
+        this.isTouched = true;
+        
+        if (this.touchTimeout) {
+            clearTimeout(this.touchTimeout);
+            this.touchTimeout = null;
+        }
+        
+        this.logger.debug(`👆 Касание фейдера ${channel + 1}`);
+    }
+
+    /**
+     * Обработка отпускания фейдера (включает обратную связь с задержкой)
+     */
+    onRelease(channel) {
+        // Задержка перед включением обратной связи
+        if (this.touchTimeout) {
+            clearTimeout(this.touchTimeout);
+        }
+        
+        this.touchTimeout = setTimeout(() => {
+            this.isTouched = false;
+            this.logger.debug(`👋 Отпускание фейдера ${channel + 1} (обратная связь восстановлена)`);
+        }, this.options.touchDelay);
+    }
+
+    /**
+     * Основной цикл обратной связи
+     */
+    async _loop() {
+        if (!this.isRunning) return;
+        
+        try {
+            // Пропускаем цикл, если фейдер зажат
+            if (this.isTouched) {
+                this.logger.debug('⏭️ Пропуск цикла (фейдер зажат)');
+                this._scheduleNext();
+                return;
+            }
+            
+            // Проверяем, что страница активна
+            if (!this.page || !this.page.isConnected()) {
+                this.logger.warn('⚠️ Страница не активна');
+                this._scheduleNext();
+                return;
+            }
+            
+            // Получаем текущее состояние GUI
+            const currentState = await this._getGUIState();
+            
+            if (currentState && currentState.length > 0) {
+                // Обрабатываем изменения состояния
+                await this._processStateChanges(currentState);
+            }
+            
+        } catch (error) {
+            this.logger.error('❌ Ошибка в цикле обратной связи:', error.message);
+        }
+        
+        this._scheduleNext();
+    }
+
+    /**
+     * Получение состояния GUI
+     */
+    async _getGUIState() {
+        try {
+            return await this.page.evaluate((selectors, maxTracks) => {
+                const allTracks = document.querySelectorAll(selectors.trackHeader);
+                const tracks = Array.from(allTracks).slice(1, maxTracks + 1);
+                
+                return tracks.map((track, index) => {
+                    // Громкость
+                    const thumb = track.querySelector(selectors.thumb);
+                    let volume = 50;
+                    if (thumb && thumb.style.left) {
+                        volume = parseFloat(thumb.style.left) || 50;
+                    }
+                    
+                    // Имя
+                    const nameEl = track.querySelector(selectors.trackName);
+                    const name = nameEl ? nameEl.textContent.trim() : `Track ${index + 1}`;
+                    
+                    // Mute
+                    const muteBtn = track.querySelector('button[aria-label*="mute"]') ||
+                                   track.querySelector('[data-action="mute"]');
+                    const muted = muteBtn ? muteBtn.getAttribute('aria-pressed') === 'true' : false;
+                    
+                    // Solo
+                    const soloBtn = track.querySelector('button[aria-label*="solo"]') ||
+                                   track.querySelector('[data-action="solo"]');
+                    const soloed = soloBtn ? soloBtn.getAttribute('aria-pressed') === 'true' : false;
+                    
+                    // Выбран ли трек
+                    const selected = track.getAttribute('data-selected') === 'true' ||
+                                    track.classList.contains('selected');
+                    
+                    return {
+                        index,
+                        name,
+                        volume: Math.min(100, Math.max(0, volume)),
+                        muted,
+                        soloed,
+                        selected
+                    };
+                });
+            }, this.guiManager.selectors, this.options.maxTracks);
+        } catch (error) {
+            this.logger.error('❌ Ошибка получения состояния GUI:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Обработка изменений состояния
+     */
+    async _processStateChanges(currentState) {
+        const deviceRouter = this.deviceRouter;
+        const guiManager = this.guiManager;
+        
+        for (let i = 0; i < currentState.length; i++) {
+            const state = currentState[i];
+            const channel = i;
+            
+            // 1. Обновление названия трека (если изменилось)
+            if (this.trackNames[channel] !== state.name) {
+                this.trackNames[channel] = state.name;
+                // Отправляем SysEx для обновления LCD
+                this._updateLCD(channel, state.name);
+            }
+            
+            // 2. Громкость (Volume) — если изменилась
+            const prevVolume = this.previousValues.volume[channel] ?? 50;
+            const volumeDelta = Math.abs(state.volume - prevVolume);
+            
+            if (volumeDelta > 1) {
+                this.previousValues.volume[channel] = state.volume;
+                
+                // Преобразуем процент (0-100) в MIDI значение (0-127)
+                const midiValue = this._percentToMidi(state.volume);
+                
+                // Отправляем на контроллер
+                if (deviceRouter.isActive()) {
+                    deviceRouter.sendFeedback({
+                        type: 'fader',
+                        value: midiValue,
+                        channel: channel
+                    });
+                    this.logger.debug(`📤 Volume ${channel + 1}: ${state.volume.toFixed(1)}% → MIDI ${midiValue}`);
+                }
+            }
+            
+            // 3. Mute — если изменилось
+            const prevMute = this.previousValues.mute[channel] ?? false;
+            if (state.muted !== prevMute) {
+                this.previousValues.mute[channel] = state.muted;
+                
+                if (deviceRouter.isActive()) {
+                    deviceRouter.sendFeedback({
+                        type: 'mute',
+                        state: state.muted ? 'on' : 'off',
+                        channel: channel
+                    });
+                    this.logger.debug(`📤 Mute ${channel + 1}: ${state.muted ? 'ON' : 'OFF'}`);
+                }
+            }
+            
+            // 4. Solo — если изменилось
+            const prevSolo = this.previousValues.solo[channel] ?? false;
+            if (state.soloed !== prevSolo) {
+                this.previousValues.solo[channel] = state.soloed;
+                
+                if (deviceRouter.isActive()) {
+                    deviceRouter.sendFeedback({
+                        type: 'solo',
+                        state: state.soloed ? 'on' : 'off',
+                        channel: channel
+                    });
+                    this.logger.debug(`📤 Solo ${channel + 1}: ${state.soloed ? 'ON' : 'OFF'}`);
+                }
+            }
+        }
+    }
+
+    /**
+     * Преобразование процентов (0-100) в MIDI-значение (0-127)
+     * с логарифмической шкалой (для более естественного ощущения)
+     */
+    _percentToMidi(percent) {
+        // Ограничиваем
+        const pct = Math.min(100, Math.max(0, percent));
+        
+        // Логарифмическая шкала: 0% → 0, 100% → 127
+        // Используем кубическую кривую для более естественного ощущения
+        const normalized = pct / 100;
+        const curved = normalized * normalized * (3 - 2 * normalized); // Smoothstep
+        return Math.round(curved * 127);
+    }
+
+    /**
+     * Обратное преобразование: MIDI → проценты
+     */
+    _midiToPercent(midi) {
+        const normalized = midi / 127;
+        // Обратная smoothstep
+        const curved = normalized * normalized * (3 - 2 * normalized);
+        return Math.round(curved * 100);
+    }
+
+    /**
+     * Обновление LCD-дисплея (отправка SysEx)
+     */
+    _updateLCD(channel, name) {
+        // Используем роутер для отправки SysEx
+        if (!this.deviceRouter.isActive()) return;
+        
+        // Формируем имя (максимум 4 символа)
+        let shortName = name;
+        if (name.length > 4) {
+            // Сокращаем длинные имена
+            const abbreviations = {
+                'Woodwinds': 'Wood',
+                'Brass_4': 'Bras',
+                'Keyboard': 'Keyb',
+                'Percussion': 'Perc',
+                'Backing_Vocals': 'BVox'
+            };
+            shortName = abbreviations[name] || name.substring(0, 4);
+        }
+        const formattedName = shortName.substring(0, 4).padEnd(4, ' ');
+        
+        // Формируем SysEx сообщение для LCD
+        // Для SSL Nucleus 2 формат: F0 00 00 66 05 00 10 [channel] [char1] [char2] [char3] [char4] F7
+        const sysexBytes = [
+            0xF0, 0x00, 0x00, 0x66, 0x05, 0x00, 0x10,
+            channel & 0x0F
+        ];
+        
+        for (let i = 0; i < 4; i++) {
+            sysexBytes.push(formattedName.charCodeAt(i) & 0x7F);
+        }
+        sysexBytes.push(0xF7);
+        
+        // Отправляем через роутер
+        try {
+            this.deviceRouter.send({
+                type: 'sysex',
+                data: sysexBytes
+            });
+            this.logger.debug(`📟 LCD ${channel + 1}: "${formattedName}"`);
+        } catch (error) {
+            this.logger.error(`❌ Ошибка отправки LCD ${channel}:`, error.message);
+        }
+    }
+
+    /**
+     * Планирование следующего цикла
+     */
+    _scheduleNext() {
+        if (this.isRunning) {
+            this.timerId = setTimeout(() => {
+                this._loop();
+            }, this.options.interval);
+        }
+    }
+
+    /**
+     * Принудительная синхронизация всех состояний
+     */
+    async forceSync() {
+        this.logger.log('🔄 Принудительная синхронизация...');
+        try {
+            const currentState = await this._getGUIState();
+            if (currentState) {
+                // Сбрасываем предыдущие значения, чтобы синхронизировать всё
+                this.previousValues = { volume: {}, mute: {}, solo: {} };
+                await this._processStateChanges(currentState);
+                this.logger.log('✅ Принудительная синхронизация выполнена');
+            }
+        } catch (error) {
+            this.logger.error('❌ Ошибка принудительной синхронизации:', error.message);
+        }
+    }
+}
