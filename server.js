@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-core';
 import easymidi from 'easymidi';
 // server.js (новая версия)
-import DOMAdapter from './src/dom-adapter.js';
+// import DOMAdapter from './src/dom-adapter.js';
 
 async function startServer() {
     console.log('[START] Инициализация сервера автоматизации...');
@@ -167,9 +167,10 @@ async function startServer() {
                             console.log(`[TOUCH] Fader ${trackId + 1} -> ${isPressed ? 'ЗАЖАТ' : 'ОТПУЩЕН'}`);
                             
                             if (isPressed) {
-								const coords = await page.evaluate((targetIndex) => {
-								    const tracks = document.querySelectorAll('[data-track-header]');
-								    const track = tracks[targetIndex]; 
+                                const trackId = activeTouchTrack5; // используем trackId
+                                const webTrackId = trackId + 1;    // определяем webTrackId здесь
+                                const coords = await page.evaluate((targetIndex) => {
+
 								    if (!track) return null;
     
 								    const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');
@@ -226,106 +227,123 @@ async function startServer() {
                     }
                 }
 
-                if (msg.controller >= 0 && msg.controller <= 7) { 
-                    channelStates[msg.controller].msb = msg.value; 
-                }
-                
+                // В server_1.js, в блоке обработки движения фейдера
+                // Замените существующий блок на этот:
+
                 if (msg.controller >= 32 && msg.controller <= 39) {
                     const trackId = msg.controller - 32;
                     channelStates[trackId].lsb = msg.value;
 
                     const fullHuiValue = (channelStates[trackId].msb << 7) | channelStates[trackId].lsb;
                     const midiVal = Math.round((fullHuiValue / 16383) * 127);
-					const deltaMidi = midiVal - channelStates[trackId].lastMidiValue;
                     const webTrackId = trackId + 1;
-                    const pctValue = midiToPercent(midiVal);// ИСПРАВЛЕНИЕ: используем правильную логарифмическую конвертацию
+                    
+                    // === ПРАВИЛЬНАЯ ЛОГАРИФМИЧЕСКАЯ КОНВЕРТАЦИЯ ===
+                    // Получаем текущий процент для логирования
+                    const pctValue = midiToPercent(midiVal);
 
+                    // Вычисляем дельту от предыдущего значения в MIDI (0-127)
+                    const deltaMidi = midiVal - channelStates[trackId].lastMidiValue;
+                    channelStates[trackId].lastMidiValue = midiVal;
+
+                    // Логируем только при изменении
                     if (channelStates[trackId].lastLoggedPct !== pctValue) {
                         channelStates[trackId].lastLoggedPct = pctValue;
-                        console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Положение: ${pctValue}% (MIDI ${midiVal})`);
+                        console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Положение: ${pctValue.toFixed(1)}% (MIDI ${midiVal})`);
                     }
-			        // === ТОЧЕЧНОЕ ИСПРАВЛЕНИЕ ДИНАМИЧЕСКИХ КООРДИНАТ (СТРОКИ 249-279) ===
-			        if (channelStates[trackId].isTouched) {
-			            const coords = await page.evaluate((targetIndex) => {
-			                const tracks = document.querySelectorAll('[data-track-header]');
-			                const track = tracks[targetIndex]; 
-			                if (!track) return null;
-                
-			                const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');
-			                const sliderLine = track.querySelector('[style*="width"]') || thumb?.parentElement;
-                
-			                if (thumb && sliderLine) {
-			                    const thumbRect = thumb.getBoundingClientRect();
-			                    const lineRect = sliderLine.getBoundingClientRect();
-			                    return {
-			                        centerX: thumbRect.left + (thumbRect.width / 2),
-			                        centerY: thumbRect.top + (thumbRect.height / 2),
-			                        // Физически возвращаем ширину слайдера в coords
-			                        trackWidth: lineRect.width 
-			                    };
-			                }
-			                return null;
-			            }, webTrackId);
 
-			            if (coords) {
-			                // Вычисляем, сколько пикселей занимает 1 шаг MIDI
-			                const pixelsPerMidiStep = coords.trackWidth / 127;
-			                // Рассчитываем точную дельту сдвига мыши
-			                const targetX = coords.centerX + (deltaMidi * pixelsPerMidiStep);
+                    // Если фейдер зажат и дельта значительная
+                    if (channelStates[trackId].isTouched && Math.abs(deltaMidi) > 1) {
+                        // НАКОПЛЕНИЕ ДЕЛЬТЫ В MIDI (не в процентах)
+                        channelStates[trackId].accumulatedDelta += deltaMidi;
+                        
+                        // Если накопилось достаточно дельты (порог 3 MIDI-шага)
+                        if (Math.abs(channelStates[trackId].accumulatedDelta) > 3) {
+                            // === ПРЕОБРАЗОВАНИЕ НАКОПЛЕННОЙ ДЕЛЬТЫ В ПРОЦЕНТЫ ===
+                            // Берем текущее значение MIDI с учетом накопленной дельты
+                            let newMidiVal = channelStates[trackId].lastMidiValue + channelStates[trackId].accumulatedDelta;
+                            newMidiVal = Math.min(127, Math.max(0, newMidiVal));
+                            
+                            // КОНВЕРТИРУЕМ MIDI В ПРОЦЕНТЫ (с использованием твоей логарифмической функции)
+                            const newPct = midiToPercent(newMidiVal);
+                            
+                            // Применяем новую позицию к GUI
+                            await page.evaluate(({ targetIdx, pct }) => {
+                                const tracks = document.querySelectorAll('[data-track-header]');
+                                const track = tracks[targetIdx];
+                                if (!track) return;
+                                
+                                const thumb = track.querySelector('.esp3i7i2');
+                                const fill = track.querySelector('[style*="width"]');
+                                
+                                if (thumb) {
+                                    thumb.style.left = pct + '%';
+                                    const event = new Event('input', { bubbles: true, cancelable: true });
+                                    thumb.dispatchEvent(event);
+                                }
+                                if (fill) {
+                                    fill.style.width = pct + '%';
+                                    const event = new Event('input', { bubbles: true, cancelable: true });
+                                    fill.dispatchEvent(event);
+                                }
+                            }, { targetIdx: webTrackId, pct: newPct });
 
-			                if (!mouseDown) {
-			                    await page.mouse.move(coords.centerX, coords.centerY);
-			                    await page.mouse.down();
-			                    mouseDown = true;
-			                }
-			                await page.mouse.move(targetX, coords.centerY, { steps: 1 });
-			            }
-			            channelStates[trackId].lastMidiValue = midiVal;
-			        }
-			    }
+                            // Сбрасываем накопитель
+                            channelStates[trackId].accumulatedDelta = 0;
+                            
+                            console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | MIDI: ${midiVal} -> UI: ${newPct.toFixed(1)}% (накоплено: ${channelStates[trackId].accumulatedDelta})`);
+                        }
+                    }
+                }
 			} catch (err) {
 			    console.log('[MIDI-ERROR]', err.message);
 			}
 		});
 		
-        async function runFeedbackLoop() {
+         async function runFeedbackLoop() {
             try {
-                if (Date.now() - lastUserMoveTime < 400 || channelStates.some(ch => ch.isTouched)) {
+                // ПРОВЕРКА: если хоть один фейдер зажат — пропускаем цикл
+                if (channelStates.some(ch => ch.isTouched)) {
                     setTimeout(runFeedbackLoop, 50);
                     return;
                 }
+
+                // Если фейдеры не зажаты — читаем положение из GUI
                 const currentPercentages = await page.evaluate(() => {
                     const allTracks = document.querySelectorAll('[data-track-header]');
                     return Array.from(allTracks).slice(1, 13).map(track => {
-                        const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');
-                        if (thumb && thumb.style.left) return parseFloat(thumb.style.left.replace('%', '')) || 50;
+                        const thumb = track.querySelector('.esp3i7i2');
+                        if (thumb && thumb.style.left) {
+                            return parseFloat(thumb.style.left.replace('%', '')) || 50;
+                        }
                         const filledBar = track.querySelector('[style*="width"]');
-                        if (filledBar && filledBar.style.width) return parseFloat(filledBar.style.width.replace('%', '')) || 50;
+                        if (filledBar && filledBar.style.width) {
+                            return parseFloat(filledBar.style.width.replace('%', '')) || 50;
+                        }
                         return 50;
                     });
                 });
-                for (let i = 0; i < currentPercentages.length; i++) {
+
+                // Отправляем MIDI только если фейдеры НЕ зажаты
+                for (let i = 0; i < currentPercentages.length && i < 8; i++) {
                     if (channelStates[i].isTouched) continue;
-					const pct = currentPercentages[i].finalValue;
-					// ИСПРАВЛЕНИЕ МЕРТВОЙ ЗОНЫ: Переводим проценты интерфейса Suno (0% - 100%)
-					// в полный диапазон HUI/MIDI фейдера (0 - 127) без затыка на 80% (0 dB)
-					let targetMidiVal = 0;
-					if (pct <= 80) {
-					    // Линейно масштабируем диапазон от -72dB до 0dB (0%..80% в UI -> 0..105 в MIDI)
-					    targetMidiVal = Math.round((pct / 80) * 105);
-					} else {
-					    // Плавно доводим диапазон от 0dB до +12dB (80%..100% в UI -> 106..127 в MIDI)
-					    targetMidiVal = 105 + Math.round(((pct - 80) / 20) * 22);
-					}
-					// Защита границ, чтобы не выйти за рамки стандартного MIDI
-					if (targetMidiVal > 127) targetMidiVal = 127;
-					if (targetMidiVal < 0) targetMidiVal = 0;
 
-					let delta = Math.abs(targetMidiVal - channelStates[i].lastMidiValue);
+                    const pct = currentPercentages[i];
+                    let targetMidiVal = 0;
+                    if (pct <= 80) {
+                        targetMidiVal = Math.round((pct / 80) * 105);
+                    } else {
+                        targetMidiVal = 105 + Math.round(((pct - 80) / 20) * 22);
+                    }
+                    if (targetMidiVal > 127) targetMidiVal = 127;
+                    if (targetMidiVal < 0) targetMidiVal = 0;
 
-					if (delta > 2 && targetMidiVal !== lastSentValues[i]) {
-					    lastSentValues[i] = targetMidiVal;
-					    channelStates[i].lastMidiValue = targetMidiVal;
+                    const delta = Math.abs(targetMidiVal - channelStates[i].lastMidiValue);
+
+                    if (delta > 2 && targetMidiVal !== lastSentValues[i]) {
+                        lastSentValues[i] = targetMidiVal;
+                        channelStates[i].lastMidiValue = targetMidiVal;
+
                         const fullHuiOut = Math.round((targetMidiVal / 127) * 16383);
                         const msbOut = (fullHuiOut >> 7) & 0x7F;
 
@@ -335,8 +353,10 @@ async function startServer() {
                         }
                     }
                 }
-            } catch (e) {}
-            setTimeout(runFeedbackLoop, 150); 
+            } catch (e) {
+                // Игнорируем ошибки
+            }
+            setTimeout(runFeedbackLoop, 150);
         }
         runFeedbackLoop();
     } catch (error) {

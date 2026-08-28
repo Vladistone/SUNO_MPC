@@ -1,0 +1,6 @@
+{
+  "trackHeader": "[data-track-header]",
+  "trackName": "span[role=\"button\"]",
+  "thumb": "[style*=\"left\"]",
+  "fill": "[style*=\"width\"]"
+}

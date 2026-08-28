@@ -1,7 +1,7 @@
-// server.js (новая версия)
-import DOMAdapter from './src/dom-adapter.js';
+// src/server_2.js
 import puppeteer from 'puppeteer-core';
 import easymidi from 'easymidi';
+import DOMAdapter from './dom-adapter.js';
 
 async function startServer() {
     console.log('[START] Инициализация сервера автоматизации...');
@@ -22,17 +22,21 @@ async function startServer() {
         } else {
             console.log('[BROWSER] Успешно подключились к живой вкладке Suno Studio!');
         }
-		
-		const adapter = new DOMAdapter(page);
-		await adapter.detectVersion();
 
-		// Вместо прямых вызовов page.evaluate используйте методы адаптера
-		const tracks = await adapter.getTracks();
-		await adapter.setVolume(trackId, percent);
+        // --- ИСПОЛЬЗУЕМ АДАПТЕР ---
+        const adapter = new DOMAdapter(page);
+        await adapter.detectVersion();
+        const tracks = await adapter.getTracks();
+        console.log(`[DOM] Найдено треков: ${tracks.length}`);
+        // Для примера установим громкость первого трека в 50%
+        if (tracks.length > 0) {
+            await adapter.setVolume(0, 50);
+            console.log('[DOM] Установлена громкость первого трека: 50%');
+        }
 		
         const midiInput5 = new easymidi.Input('ipMIDI Port 5');
         const midiOutput5 = new easymidi.Output('ipMIDI Port 5');
-        console.log('[MIDI] Монолитный HUI-мост (Макро-дебаг) запущен на ipMIDI Port 5!');
+        console.log('[MIDI] HUI-мост (Макро-дебаг) ipMIDI Port 5!');
 
         let lastSentValues = new Array(16).fill(-1);
         let channelStates = Array.from({ length: 16 }, () => ({
@@ -172,11 +176,12 @@ async function startServer() {
                         if (channelStates[trackId].isTouched !== isPressed) {
                             channelStates[trackId].isTouched = isPressed;
                             console.log(`[TOUCH] Fader ${trackId + 1} -> ${isPressed ? 'ЗАЖАТ' : 'ОТПУЩЕН'}`);
-                            
+
                             if (isPressed) {
-								const coords = await page.evaluate((targetIndex) => {
-								    const tracks = document.querySelectorAll('[data-track-header]');
-								    const track = tracks[targetIndex]; 
+                                const trackId = activeTouchTrack5; // используем trackId
+                                const webTrackId = trackId + 1;    // определяем webTrackId здесь
+                                const coords = await page.evaluate((targetIndex) => {
+
 								    if (!track) return null;
     
 								    const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');

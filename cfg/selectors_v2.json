@@ -1,0 +1,6 @@
+{
+  "trackHeader": "[data-track-header]",
+  "trackName": ".track-name-class",
+  "thumb": ".thumb-class",
+  "fill": ".fill-class"
+}
