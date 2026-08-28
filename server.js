@@ -30,6 +30,7 @@ async function startServer() {
         let lastSentValues = new Array(16).fill(-1);
         let channelStates = Array.from({ length: 16 }, () => ({
             isTouched: false, msb: 0, lsb: 0, lastMidiValue: 64, lastLoggedPct: -1
+            isUpdatingGUI: false,  // <-- новое поле
         }));
 
         let activeTouchTrack5 = 0;
@@ -227,74 +228,69 @@ async function startServer() {
                     }
                 }
 
-                // В server_1.js, в блоке обработки движения фейдера
-                // Замените существующий блок на этот:
-
+                if (msg.controller >= 0 && msg.controller <= 7) { 
+                    channelStates[msg.controller].msb = msg.value; 
+                }
+                
                 if (msg.controller >= 32 && msg.controller <= 39) {
                     const trackId = msg.controller - 32;
                     channelStates[trackId].lsb = msg.value;
 
                     const fullHuiValue = (channelStates[trackId].msb << 7) | channelStates[trackId].lsb;
                     const midiVal = Math.round((fullHuiValue / 16383) * 127);
+					const deltaMidi = midiVal - channelStates[trackId].lastMidiValue;
                     const webTrackId = trackId + 1;
-                    
-                    // === ПРАВИЛЬНАЯ ЛОГАРИФМИЧЕСКАЯ КОНВЕРТАЦИЯ ===
-                    // Получаем текущий процент для логирования
-                    const pctValue = midiToPercent(midiVal);
+                    const pctValue = midiToPercent(midiVal);// ИСПРАВЛЕНИЕ: используем правильную логарифмическую конвертацию
 
-                    // Вычисляем дельту от предыдущего значения в MIDI (0-127)
-                    const deltaMidi = midiVal - channelStates[trackId].lastMidiValue;
-                    channelStates[trackId].lastMidiValue = midiVal;
-
-                    // Логируем только при изменении
                     if (channelStates[trackId].lastLoggedPct !== pctValue) {
                         channelStates[trackId].lastLoggedPct = pctValue;
-                        console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Положение: ${pctValue.toFixed(1)}% (MIDI ${midiVal})`);
+                        console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Положение: ${pctValue}% (MIDI ${midiVal})`);
                     }
+			        // === ТОЧЕЧНОЕ ИСПРАВЛЕНИЕ ДИНАМИЧЕСКИХ КООРДИНАТ (СТРОКИ 249-279) ===
+                    if (channelStates[trackId].isTouched) {
+                        const coords = await page.evaluate((targetIndex) => {
+                            const tracks = document.querySelectorAll('[data-track-header]');
+                            const track = tracks[targetIndex];
+                            if (!track) return null;
 
-                    // Если фейдер зажат и дельта значительная
-                    if (channelStates[trackId].isTouched && Math.abs(deltaMidi) > 1) {
-                        // НАКОПЛЕНИЕ ДЕЛЬТЫ В MIDI (не в процентах)
-                        channelStates[trackId].accumulatedDelta += deltaMidi;
-                        
-                        // Если накопилось достаточно дельты (порог 3 MIDI-шага)
-                        if (Math.abs(channelStates[trackId].accumulatedDelta) > 3) {
-                            // === ПРЕОБРАЗОВАНИЕ НАКОПЛЕННОЙ ДЕЛЬТЫ В ПРОЦЕНТЫ ===
-                            // Берем текущее значение MIDI с учетом накопленной дельты
-                            let newMidiVal = channelStates[trackId].lastMidiValue + channelStates[trackId].accumulatedDelta;
-                            newMidiVal = Math.min(127, Math.max(0, newMidiVal));
-                            
-                            // КОНВЕРТИРУЕМ MIDI В ПРОЦЕНТЫ (с использованием твоей логарифмической функции)
-                            const newPct = midiToPercent(newMidiVal);
-                            
-                            // Применяем новую позицию к GUI
-                            await page.evaluate(({ targetIdx, pct }) => {
-                                const tracks = document.querySelectorAll('[data-track-header]');
-                                const track = tracks[targetIdx];
-                                if (!track) return;
-                                
-                                const thumb = track.querySelector('.esp3i7i2');
-                                const fill = track.querySelector('[style*="width"]');
-                                
-                                if (thumb) {
-                                    thumb.style.left = pct + '%';
-                                    const event = new Event('input', { bubbles: true, cancelable: true });
-                                    thumb.dispatchEvent(event);
-                                }
-                                if (fill) {
-                                    fill.style.width = pct + '%';
-                                    const event = new Event('input', { bubbles: true, cancelable: true });
-                                    fill.dispatchEvent(event);
-                                }
-                            }, { targetIdx: webTrackId, pct: newPct });
+                            const thumb = track.querySelector('.esp3i7i2');
+                            const sliderLine = track.querySelector('[style*="width"]') || thumb?.parentElement;
 
-                            // Сбрасываем накопитель
-                            channelStates[trackId].accumulatedDelta = 0;
+                            if (thumb && sliderLine) {
+                                const thumbRect = thumb.getBoundingClientRect();
+                                const lineRect = sliderLine.getBoundingClientRect();
+                                return {
+                                    centerX: thumbRect.left + (thumbRect.width / 2),
+                                    centerY: thumbRect.top + (thumbRect.height / 2),
+                                    trackWidth: lineRect.width,
+                                    left: thumb.style.left
+                                };
+                            }
+                            return null;
+                        }, webTrackId);
+
+                        if (coords) {
+                            // Вычисляем новую позицию ТОЛЬКО для мыши
+                            const pixelsPerMidiStep = coords.trackWidth / 127;
+                            const targetX = coords.centerX + (deltaMidi * pixelsPerMidiStep);
+                            const targetY = coords.centerY;
+
+                            // ИСПРАВЛЕНО: ТОЛЬКО эмуляция мыши, без изменения DOM
+                            if (!mouseDown) {
+                                await page.mouse.move(coords.centerX, coords.centerY);
+                                await page.mouse.down();
+                                mouseDown = true;
+                            }
                             
-                            console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | MIDI: ${midiVal} -> UI: ${newPct.toFixed(1)}% (накоплено: ${channelStates[trackId].accumulatedDelta})`);
+                            const steps = Math.max(1, Math.abs(Math.round(deltaMidi / 3)));
+                            await page.mouse.move(targetX, targetY, { steps: steps });
+                            
+                            // УБИРАЕМ изменение style.left и dispatchEvent
+                            // Оставляем только mouse move
                         }
+                        channelStates[trackId].lastMidiValue = midiVal;
                     }
-                }
+			    }
 			} catch (err) {
 			    console.log('[MIDI-ERROR]', err.message);
 			}
@@ -303,7 +299,7 @@ async function startServer() {
          async function runFeedbackLoop() {
             try {
                 // ПРОВЕРКА: если хоть один фейдер зажат — пропускаем цикл
-                if (channelStates.some(ch => ch.isTouched)) {
+                if (channelStates.some(ch => ch.isTouched || ch.isUpdatingGUI)) {
                     setTimeout(runFeedbackLoop, 50);
                     return;
                 }
