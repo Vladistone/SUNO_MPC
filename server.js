@@ -234,100 +234,126 @@ async function startServer() {
                     const fullHuiValue = (channelStates[trackId].msb << 7) | channelStates[trackId].lsb;
                     const midiVal = Math.round((fullHuiValue / 16383) * 127);
                     const webTrackId = trackId + 1;
-                    
-                    // === ПРАВИЛЬНАЯ ЛОГАРИФМИЧЕСКАЯ КОНВЕРТАЦИЯ ===
-                    // Получаем текущий процент для логирования
-                    const pctValue = midiToPercent(midiVal);
 
-                    // Вычисляем дельту от предыдущего значения в MIDI (0-127)
+                    const pctValue = midiToPercent(midiVal);
                     const deltaMidi = midiVal - channelStates[trackId].lastMidiValue;
                     channelStates[trackId].lastMidiValue = midiVal;
 
-                    // Логируем только при изменении
                     if (channelStates[trackId].lastLoggedPct !== pctValue) {
                         channelStates[trackId].lastLoggedPct = pctValue;
                         console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Положение: ${pctValue.toFixed(1)}% (MIDI ${midiVal})`);
                     }
 
-                    // Если фейдер зажат и дельта значительная
-                    if (channelStates[trackId].isTouched && Math.abs(deltaMidi) > 1) {
-                        // НАКОПЛЕНИЕ ДЕЛЬТЫ В MIDI (не в процентах)
+                    if (channelStates[trackId].isTouched && Math.abs(deltaMidi) > 0) {
                         channelStates[trackId].accumulatedDelta += deltaMidi;
-                        
-                        // Если накопилось достаточно дельты (порог 3 MIDI-шага)
-                        if (Math.abs(channelStates[trackId].accumulatedDelta) > 3) {
-                            // === ПРЕОБРАЗОВАНИЕ НАКОПЛЕННОЙ ДЕЛЬТЫ В ПРОЦЕНТЫ ===
-                            // Берем текущее значение MIDI с учетом накопленной дельты
-                            let newMidiVal = channelStates[trackId].lastMidiValue + channelStates[trackId].accumulatedDelta;
-                            newMidiVal = Math.min(127, Math.max(0, newMidiVal));
-                            
-                            // КОНВЕРТИРУЕМ MIDI В ПРОЦЕНТЫ (с использованием твоей логарифмической функции)
-                            const newPct = midiToPercent(newMidiVal);
-                            
-                            // Применяем новую позицию к GUI
-                            channelStates[trackId].isUpdatingGUI = true;    // блокируем feedback
-                            await page.evaluate(({ targetIdx, pct }) => {
-                                const tracks = document.querySelectorAll('[data-track-header]');
-                                const track = tracks[targetIdx];
-                                if (!track) return;
-                                
-                                const thumb = track.querySelector('.esp3i7i2');
-                                const fill = track.querySelector('[style*="width"]');
-                                
-                                if (thumb) {
-                                    thumb.style.left = pct + '%';
-                                    const event = new Event('input', { bubbles: true, cancelable: true });
-                                    thumb.dispatchEvent(event);
-                                }
-                                if (fill) {
-                                    fill.style.width = pct + '%';
-                                    const event = new Event('input', { bubbles: true, cancelable: true });
-                                    fill.dispatchEvent(event);
-                                }
-                            }, { targetIdx: webTrackId, pct: newPct });
-                            channelStates[trackId].isUpdatingGUI = false;  // разблокируем feedback
 
-                            // Сбрасываем накопитель
-                            channelStates[trackId].accumulatedDelta = 0;
-                            
-                            console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | MIDI: ${midiVal} -> UI: ${newPct.toFixed(1)}% (накоплено: ${channelStates[trackId].accumulatedDelta})`);
+                        if (Math.abs(channelStates[trackId].accumulatedDelta) > 2) {
+                            // === ГЛАВНОЕ ИЗМЕНЕНИЕ: используем mouse.move ===
+                            const coords = await page.evaluate((targetIndex) => {
+                                const tracks = document.querySelectorAll('[data-track-header]');
+                                const track = tracks[targetIndex];
+                                if (!track) return null;
+
+                                const thumb = track.querySelector('.esp3i7i2');
+                                const sliderLine = track.querySelector('[style*="width"]') || thumb?.parentElement;
+
+                                if (thumb && sliderLine) {
+                                    const thumbRect = thumb.getBoundingClientRect();
+                                    const lineRect = sliderLine.getBoundingClientRect();
+                                    return {
+                                        centerX: thumbRect.left + (thumbRect.width / 2),
+                                        centerY: thumbRect.top + (thumbRect.height / 2),
+                                        trackWidth: lineRect.width
+                                    };
+                                }
+                                return null;
+                            }, webTrackId);
+
+                            if (coords) {
+                                // Вычисляем новую позицию мыши
+                                const pixelsPerMidiStep = coords.trackWidth / 127;
+                                const targetX = coords.centerX + (channelStates[trackId].accumulatedDelta * pixelsPerMidiStep);
+                                const targetY = coords.centerY;
+
+                                // Блокируем feedback
+                                channelStates[trackId].isUpdatingGUI = true;
+
+                                // Двигаем мышь
+                                if (!mouseDown) {
+                                    await page.mouse.move(coords.centerX, coords.centerY);
+                                    await page.mouse.down();
+                                    mouseDown = true;
+                                }
+                                await page.mouse.move(targetX, targetY, { steps: 5 });
+
+                                // Разблокируем feedback
+                                channelStates[trackId].isUpdatingGUI = false;
+                                channelStates[trackId].accumulatedDelta = 0;
+
+                                console.log(`[MOVE] Fader ${trackId + 1} -> Стем ${webTrackId + 1} | Мышь: ${targetX.toFixed(0)}x${targetY.toFixed(0)}`);
+                            }
                         }
                     }
-                }
-			} catch (err) {
+                } catch (err) {
 			    console.log('[MIDI-ERROR]', err.message);
 			}
-		});
+		//});
 		
-         async function runFeedbackLoop() {
+        async function runFeedbackLoop() {
             try {
-                // ПРОВЕРКА: если хоть один фейдер зажат — пропускаем цикл
                 if (channelStates.some(ch => ch.isTouched || ch.isUpdatingGUI)) {
                     setTimeout(runFeedbackLoop, 50);
                     return;
                 }
 
-                // Если фейдеры не зажаты — читаем положение из GUI
                 const currentPercentages = await page.evaluate(() => {
                     const allTracks = document.querySelectorAll('[data-track-header]');
                     return Array.from(allTracks).slice(1, 13).map(track => {
                         const thumb = track.querySelector('.esp3i7i2');
+                        const nameSpan = track.querySelector('span[role="button"]');
+                        const name = nameSpan ? nameSpan.textContent.trim() : "Track";
                         if (thumb && thumb.style.left) {
-                            return parseFloat(thumb.style.left.replace('%', '')) || 50;
+                            return { name, value: parseFloat(thumb.style.left.replace('%', '')) || 50 };
                         }
                         const filledBar = track.querySelector('[style*="width"]');
                         if (filledBar && filledBar.style.width) {
-                            return parseFloat(filledBar.style.width.replace('%', '')) || 50;
+                            return { name, value: parseFloat(filledBar.style.width.replace('%', '')) || 50 };
                         }
-                        return 50;
+                        return { name, value: 50 };
+                    });
+                });
+                // В runFeedbackLoop, после получения currentPercentages
+                // Добавляем отслеживание Mute/Solo состояния
+                const trackStates = await page.evaluate(() => {
+                    const allTracks = document.querySelectorAll('[data-track-header]');
+                    return Array.from(allTracks).slice(1, 9).map(track => {
+                        const muteBtn = track.querySelector('[aria-label*="mute"]');
+                        const soloBtn = track.querySelector('[aria-label*="solo"]');
+                        return {
+                            muted: muteBtn ? muteBtn.getAttribute('aria-pressed') === 'true' : false,
+                            soloed: soloBtn ? soloBtn.getAttribute('aria-pressed') === 'true' : false
+                        };
                     });
                 });
 
-                // Отправляем MIDI только если фейдеры НЕ зажаты
+                for (let i = 0; i < trackStates.length; i++) {
+                    // Mute Feedback
+                    const muteValue = trackStates[i].muted ? 66 : 2;
+                    midiOutput5.send('cc', { controller: 47, value: muteValue, channel: 0 });
+                    midiOutput5.send('cc', { controller: 15, value: i, channel: 0 });
+
+                    // Solo Feedback
+                    const soloValue = trackStates[i].soloed ? 67 : 3;
+                    midiOutput5.send('cc', { controller: 47, value: soloValue, channel: 0 });
+                    midiOutput5.send('cc', { controller: 15, value: i, channel: 0 });
+                }
                 for (let i = 0; i < currentPercentages.length && i < 8; i++) {
+                    // Обновляем LCD
+                    updateHuiDisplay(i, currentPercentages[i].name);
+
                     if (channelStates[i].isTouched) continue;
 
-                    const pct = currentPercentages[i];
+                    const pct = currentPercentages[i].value;
                     let targetMidiVal = 0;
                     if (pct <= 80) {
                         targetMidiVal = Math.round((pct / 80) * 105);
