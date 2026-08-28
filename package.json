@@ -1,19 +1,17 @@
 {
   "name": "suno-mpc-controller",
   "version": "1.0.0",
-  "description": "Suno Studio Controller for SSL Nucleus 2 and other MPC (Multy Purposes MIDI controllers)",
+  "description": "Suno Studio Controller for SSL Nucleus 2 and other MIDI controllers",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node tests/studio_v1.test.js",
-    "lint": "eslint src/**/*.js",
-    "format": "prettier --write src/**/*.js"
+    "test": "node tests/studio_v1.test.js"
   },
   "dependencies": {
-    "easymidi": "^2.5.0",
-    "puppeteer-core": "^21.0.0"
+    "easymidi": "^3.2.0",
+    "puppeteer-core": "^23.0.0"
   },
   "devDependencies": {
     "eslint": "^8.0.0",
