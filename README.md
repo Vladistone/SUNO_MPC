@@ -1,4 +1,5 @@
-'''
+
+```text
 SUNO_controller/
 ├── package.json
 ├── package-lock.json
@@ -24,4 +25,4 @@ SUNO_controller/
 └── tests/
     ├── studio_v1.test.js   # Тесты для проверки интерфейса 1.0
     └── studio_v2.test.js   # Тесты для проверки интерфейса 2.0
-'''
+```
