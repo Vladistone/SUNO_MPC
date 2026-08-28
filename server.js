@@ -166,36 +166,34 @@ async function startServer() {
                             channelStates[trackId].isTouched = isPressed;
                             console.log(`[TOUCH] Fader ${trackId + 1} -> ${isPressed ? 'ЗАЖАТ' : 'ОТПУЩЕН'}`);
                             
-                            if (isPressed) {
-                                const trackId = activeTouchTrack5; // используем trackId
-                                const webTrackId = trackId + 1;    // определяем webTrackId здесь
-                                const coords = await page.evaluate((targetIndex) => {
+                                if (isPressed) {
+                                    const webTrackId = trackId + 1;
+                                    const coords = await page.evaluate((targetIndex) => {
+                                        const tracks = document.querySelectorAll('[data-track-header]');
+                                        const track = tracks[targetIndex];
+                                        if (!track) return null;
 
-								    if (!track) return null;
-    
-								    const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');
-								    // Находим родительский контейнер или саму дорожку, которая определяет ширину хода
-								    const sliderLine = track.querySelector('[style*="width"]') || thumb?.parentElement;
-    
-								    if (thumb && sliderLine) {
-								        const thumbRect = thumb.getBoundingClientRect();
-								        const lineRect = sliderLine.getBoundingClientRect();
-								        return {
-								            centerX: thumbRect.left + (thumbRect.width / 2),
-								            centerY: thumbRect.top + (thumbRect.height / 2),
-								            // Динамически передаем реальную ширину слайдера на экране в этот миллисекундный момент
-								            trackWidth: lineRect.width 
-								        };
-								    }
-								    return null;
-								}, webTrackId);
+                                        const thumb = track.querySelector('[style*="left"]') || track.querySelector('[role="slider"]');
+                                        const sliderLine = track.querySelector('[style*="width"]') || thumb?.parentElement;
 
-                                if (coords && !mouseDown) {
-                                    await page.mouse.move(coords.centerX, coords.centerY);
-                                    await page.mouse.down();
-                                    mouseDown = true;
-                                }
-                            } else {
+                                        if (thumb && sliderLine) {
+                                            const thumbRect = thumb.getBoundingClientRect();
+                                            const lineRect = sliderLine.getBoundingClientRect();
+                                            return {
+                                                centerX: thumbRect.left + (thumbRect.width / 2),
+                                                centerY: thumbRect.top + (thumbRect.height / 2),
+                                                trackWidth: lineRect.width
+                                            };
+                                        }
+                                        return null;
+                                    }, webTrackId);
+
+                                    if (coords && !mouseDown) {
+                                        await page.mouse.move(coords.centerX, coords.centerY);
+                                        await page.mouse.down();
+                                        mouseDown = true;
+                                    }
+                                } else {
                                 if (mouseDown) {
                                     await page.mouse.up();
                                     mouseDown = false;
