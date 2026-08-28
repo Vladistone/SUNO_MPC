@@ -268,6 +268,7 @@ async function startServer() {
                             const newPct = midiToPercent(newMidiVal);
                             
                             // Применяем новую позицию к GUI
+                            channelStates[trackId].isUpdatingGUI = true;    // блокируем feedback
                             await page.evaluate(({ targetIdx, pct }) => {
                                 const tracks = document.querySelectorAll('[data-track-header]');
                                 const track = tracks[targetIdx];
@@ -287,6 +288,7 @@ async function startServer() {
                                     fill.dispatchEvent(event);
                                 }
                             }, { targetIdx: webTrackId, pct: newPct });
+                            channelStates[trackId].isUpdatingGUI = false;  // разблокируем feedback
 
                             // Сбрасываем накопитель
                             channelStates[trackId].accumulatedDelta = 0;
@@ -303,7 +305,7 @@ async function startServer() {
          async function runFeedbackLoop() {
             try {
                 // ПРОВЕРКА: если хоть один фейдер зажат — пропускаем цикл
-                if (channelStates.some(ch => ch.isTouched)) {
+                if (channelStates.some(ch => ch.isTouched || ch.isUpdatingGUI)) {
                     setTimeout(runFeedbackLoop, 50);
                     return;
                 }
