@@ -288,7 +288,7 @@ export default class DeviceRouter {
             if (message.type === 'pitchbend' || message.type === 'pitchBend' || 
                 message.type === 'pitchwheel' || message.type === 'pitchband') {
                 // easymidi ожидает { value: 0-16383, channel: 0-15 }
-                this.output.send('pitchbend', {
+                this.output.send('pitch', {  // <-- easymidi ДОЛЖНО БЫТЬ pitch
                     value: message.value || 8192,
                     channel: message.channel || 0
                 });
@@ -323,7 +323,7 @@ export default class DeviceRouter {
         if (!midiMessage) return false;
         if (midiMessage.type === 'pitchBend' || midiMessage.type === 'pitchbend' || 
             midiMessage.type === 'pitchband' || midiMessage.type === 'pitchwheel') {
-            midiMessage.type = 'pitchbend';  // <-- ДОЛЖНО БЫТЬ pitchbend
+            midiMessage.type = 'pitch';  // <-- easymidi ДОЛЖНО БЫТЬ pitch
             if (midiMessage.value !== undefined) {
                 midiMessage.value = Math.min(16383, Math.max(0, midiMessage.value));
             }
