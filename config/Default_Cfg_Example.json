@@ -1,0 +1,11 @@
+{
+  "deviceId": "ssl-nucleus-2",
+  "protocolId": "hui",
+  "ports": {
+    "ssl-nucleus-2": {
+      "left": { "input": "ipMIDI Port 5", "output": "ipMIDI Port 5", "mode": "track", "offset": 0 },
+      "right": { "input": "ipMIDI Port 6", "output": "ipMIDI Port 6", "mode": "fx", "offset": 8 }
+    }
+  },
+  "timestamp": "..."
+}

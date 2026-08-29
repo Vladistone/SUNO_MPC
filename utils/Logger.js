@@ -1,5 +1,5 @@
-// test/Logger.js
-// Универсальный логгер с цветами
+// utils/Logger.js
+// Универсальный логгер
 
 export default class Logger {
     constructor(prefix = '[SUNO]', options = {}) {

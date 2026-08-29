@@ -2,7 +2,7 @@
 // Управление браузером через Puppeteer
 
 import puppeteer from 'puppeteer-core';
-import Logger from './Logger.js';
+import Logger from '../utils/Logger.js';
 
 export default class BrowserManager {
     constructor(options = {}) {
@@ -14,9 +14,7 @@ export default class BrowserManager {
         this.isConnected = false;
     }
 
-    /**
-     * Подключение к запущенному браузеру
-     */
+    // Подключение к запущенному браузеру
     async connect() {
         try {
             this.logger.log(`🔌 Подключение к Chrome на порту ${this.port}...`);
@@ -34,17 +32,16 @@ export default class BrowserManager {
                 this.page = await this.browser.newPage();
                 await this.page.goto(this.url, {
                     waitUntil: 'networkidle2',
-                    timeout: 30000
+                    timeout: 60000  // Увеличили до 60 секунд
                 });
             } else {
                 this.logger.log('✅ Подключены к существующей вкладке Suno Studio!');
-                // Обновляем страницу, чтобы быть уверенными
-                await this.page.reload({ waitUntil: 'networkidle2' });
+                // Убираем принудительную перезагрузку
+                // await this.page.reload({ waitUntil: 'networkidle2' });
             }
 
             this.isConnected = true;
             
-            // Настраиваем обработку ошибок
             this.page.on('error', (error) => {
                 this.logger.error('⚠️ Ошибка страницы:', error.message);
             });
@@ -63,9 +60,7 @@ export default class BrowserManager {
         }
     }
 
-    /**
-     * Проверка, активна ли страница
-     */
+    // Проверка, активна ли страница
     async isPageActive() {
         if (!this.page) return false;
         try {
@@ -76,9 +71,7 @@ export default class BrowserManager {
         }
     }
 
-    /**
-     * Перезагрузка страницы
-     */
+    // Перезагрузка страницы
     async reloadPage() {
         if (!this.page) return;
         this.logger.log('🔄 Перезагрузка страницы...');
@@ -86,17 +79,15 @@ export default class BrowserManager {
         this.logger.log('✅ Страница перезагружена');
     }
 
-    /**
-     * Выполнение JavaScript в контексте страницы
-     */
+
+    // Выполнение JavaScript в контексте страницы
     async evaluateScript(script, ...args) {
         if (!this.page) throw new Error('Страница не подключена');
         return await this.page.evaluate(script, ...args);
     }
 
-    /**
-     * Поиск элемента в DOM
-     */
+
+    // Поиск элемента в DOM
     async findElement(selector, timeout = 5000) {
         if (!this.page) throw new Error('Страница не подключена');
         try {
@@ -108,17 +99,13 @@ export default class BrowserManager {
         }
     }
 
-    /**
-     * Поиск всех элементов по селектору
-     */
+    // Поиск всех элементов по селектору
     async findElements(selector) {
         if (!this.page) throw new Error('Страница не подключена');
         return await this.page.$$(selector);
     }
 
-    /**
-     * Отключение от браузера
-     */
+    // Отключение от браузера
     async disconnect() {
         if (this.browser) {
             this.logger.log('🔌 Отключение от браузера...');
@@ -130,25 +117,19 @@ export default class BrowserManager {
         }
     }
 
-    /**
-     * Сделать скриншот страницы (для отладки)
-     */
+    // Сделать скриншот страницы (для отладки)
     async screenshot(path = 'screenshot.png') {
         if (!this.page) return;
         await this.page.screenshot({ path, fullPage: true });
         this.logger.log(`📸 Скриншот сохранён: ${path}`);
     }
 
-    /**
-     * Получить текущий URL
-     */
+    // Получить текущий URL
     getCurrentUrl() {
         return this.page ? this.page.url() : null;
     }
 
-    /**
-     * Получить заголовок страницы
-     */
+    // Получить заголовок страницы
     async getTitle() {
         if (!this.page) return null;
         return await this.page.title();

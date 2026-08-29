@@ -149,13 +149,20 @@ export class HUIProtocol {
         
         // Fader (Pitch Bend)
         if (type === ABSTRACT_COMMANDS.FADER) {
+            let midiValue = value;
+            if (typeof value === 'number' && value <= 1 && value >= 0) {
+                midiValue = Math.round(value * 16383);
+            } else if (typeof value === 'number' && value <= 127 && value >= 0) {
+                midiValue = Math.round((value / 127) * 16383);
+            }
+            midiValue = Math.min(16383, Math.max(0, midiValue));
             return {
-                type: 'pitchBend',
-                value: Math.round((value / 127) * 16383),
-                channel: channel || 0
+                type: 'pitchbend',
+                value: midiValue,
+                channel: channel || 0  // <-- ИСПРАВЛЕНО: используем channel из command
             };
         }
-        
+                        
         // V-Pot (Control Change)
         if (type === ABSTRACT_COMMANDS.VPOT) {
             const controller = 16 + (channel || 0);
