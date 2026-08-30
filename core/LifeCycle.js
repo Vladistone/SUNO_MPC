@@ -4,11 +4,11 @@
 import Logger from '../utils/Logger.js';
 import { appState } from './State.js';
 
-const logger = new Logger('[LIFECYCLE]');
+const logger = new Logger('[LCYCLE]');
 
 export async function shutdown() {
     if (!appState.isRunning) return;
-    logger.log('🔄 Остановка сервера...');
+    logger.log('⏹️ Остановка сервера...');
     appState.isRunning = false;
 
     // Проверяем, что consoleCleanup существует и является функцией
@@ -26,7 +26,7 @@ export async function shutdown() {
         await appState.browser.disconnect();
     }
 
-    logger.log('👋 Сервер остановлен.');
+    logger.log('⛔️ Сервер остановлен.');
     process.exit(0);
 }
 
@@ -37,10 +37,10 @@ export function setupShutdownHandler() {
 
 export function setupErrorHandlers() {
     process.on('uncaughtException', (error) => {
-        logger.error('💥 Необработанное исключение:', error.message);
+        logger.error('☠️ Необработанное исключение:', error.message);
         console.error(error.stack);
     });
     process.on('unhandledRejection', (reason) => {
-        logger.error('💥 Необработанный rejection:', reason);
+        logger.error('☠️ Необработанный rejection:', reason);
     });
 }

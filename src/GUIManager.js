@@ -3,10 +3,10 @@ import Logger from '../utils/Logger.js';
 export default class GUIManager {
     constructor(page, options = {}) {
         this.page = page;
-        this.logger = new Logger('[GUI]');
+        this.logger = new Logger('[GUIMGR]');
         this.selectors = null;
         this.trackData = [];
-        this.channelStates = {};
+        this.chStates = {};
         this.options = {
             trackOffset: options.trackOffset || 1,
             maxTracks: options.maxTracks || 12,
@@ -27,7 +27,7 @@ export default class GUIManager {
             const data = await fs.readFile(configPath, 'utf8');
             this.selectors = JSON.parse(data);
             
-            this.logger.log('✅ Селекторы загружены');
+            this.logger.log('☑️ Селекторы загружены');
             return this.selectors;
         } catch (error) {
             this.logger.error('❌ Ошибка загрузки селекторов:', error.message);
@@ -80,11 +80,11 @@ export default class GUIManager {
             }
             
             this.trackData = result;
-            this.logger.log(`✅ Синхронизировано ${this.trackData.length} треков`);
+            this.logger.log(`🪢 Синхронизировано ${this.trackData.length} треков`);
             
-            this.channelStates = {};
+            this.chStates = {};
             this.trackData.forEach((track, i) => {
-                this.channelStates[i] = {
+                this.chStates[i] = {
                     volume: track.value,
                     pan: 64,
                     mute: false,
@@ -106,7 +106,7 @@ export default class GUIManager {
     }
 
     getChannelState(channel) {
-        return this.channelStates[channel] || null;
+        return this.chStates[channel] || null;
     }
 
     async setVolume(channel, value) {
@@ -149,7 +149,7 @@ export default class GUIManager {
                 selectors: this.selectors
             });
 
-            this.channelStates[channel].volume = percent;
+            this.chStates[channel].volume = percent;
             this.trackData[trackIndex].value = percent;
             return true;
         } catch (error) {
@@ -160,22 +160,22 @@ export default class GUIManager {
 
     async setPan(channel, value) {
         // Реализация панорамы
-        this.logger.debug(`🔄 Pan трека ${channel}: ${value}`);
+        this.logger.debug(`🎧 Pan трека ${channel}: ${value}`);
         return true;
     }
 
     async toggleMute(channel, state) {
-        this.logger.debug(`🔇 Mute трека ${channel}: ${state ? 'ON' : 'OFF'}`);
+        this.logger.debug(`🚫 Mute трека ${channel}: ${state ? 'ON' : 'OFF'}`);
         return true;
     }
 
     async toggleSolo(channel, state) {
-        this.logger.debug(`🎵 Solo трека ${channel}: ${state ? 'ON' : 'OFF'}`);
+        this.logger.debug(`🔆 Solo трека ${channel}: ${state ? 'ON' : 'OFF'}`);
         return true;
     }
 
     async selectTrack(channel) {
-        this.logger.debug(`🎯 Выбран трек ${channel}`);
+        this.logger.debug(`👉 Выбран трек ${channel}`);
         return true;
     }
 

@@ -131,7 +131,7 @@ export function isConfigValid(config, devices, protocols, midiDevices) {
             const leftValid = midiDevices.inputs.includes(devicePorts.left.input) &&
                              midiDevices.outputs.includes(devicePorts.left.output);
             if (!leftValid) {
-                logger.warn(`⚠️ Левая панель: порты ${devicePorts.left.input} → ${devicePorts.left.output} недоступны`);
+                logger.warn(`⛓️ L панель: порты ${devicePorts.left.input} → ${devicePorts.left.output} недоступны`);
                 return false;
             }
         }
@@ -141,7 +141,7 @@ export function isConfigValid(config, devices, protocols, midiDevices) {
             const rightValid = midiDevices.inputs.includes(devicePorts.right.input) &&
                                midiDevices.outputs.includes(devicePorts.right.output);
             if (!rightValid) {
-                logger.warn(`⚠️ Правая панель: порты ${devicePorts.right.input} → ${devicePorts.right.output} недоступны`);
+                logger.warn(`⛓️ R панель: порты ${devicePorts.right.input} → ${devicePorts.right.output} недоступны`);
                 return false;
             }
         }

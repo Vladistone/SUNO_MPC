@@ -1,5 +1,8 @@
 // core/index.js
 // Главная точка входа — исправленная загрузка и сохранение портов
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url'
 
 import Logger from '../utils/Logger.js';
 import { appState } from './State.js';
@@ -15,7 +18,35 @@ import DeviceRouter from '../src/DeviceRouter.js';
 import GUIManager from '../src/GUIManager.js';
 import FeedbackLoop from '../src/FeedbackLoop.js';
 
-const logger = new Logger('[MAIN]');
+// Получаем путь к текущей папке core/
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Строим жесткий абсолютный путь к папке src/
+const imagePath = path.join(__dirname, '../src/SunoColor.png');
+
+function getTerminalIcon(filePath, widthCells = 1) {
+    try {
+        // Проверяем физическое наличие файла на диске Mac
+        if (!fs.existsSync(filePath)) {
+            return `[Ошибка: файл не найден по пути ${filePath}] `;
+        }
+        
+        const fileBuffer = fs.readFileSync(filePath);
+        const base64Image = fileBuffer.toString('base64');
+        
+        // inline=1 заставляет iTerm2 рендерить графические байты
+        return `\x1b]1337;File=width=${widthCells};height=auto;inline=1:${base64Image}\x07 `;
+    } catch (e) {
+        return `[Ошибка скрипта: ${e.message}] `;
+    }
+}
+
+// Генерируем картинку, передавая абсолютный путь
+const sunoImage = getTerminalIcon(imagePath, 4);
+
+
+const logger = new Logger('[ MAIN ]');
 
 // Сохраняем shutdown в appState
 appState.shutdown = shutdown;
@@ -24,18 +55,18 @@ async function startServer() {
     logger.log('🚀 Запуск Suno Studio Controller...');
 
     try {
-        // --- 1. Сканирование MIDI-портов ---
+        // -1- Сканирование MIDI-портов
         const midiPorts = await detectMidiPorts();
         logger.log(`📡 Найдено MIDI-портов: входов=${midiPorts.inputs.length}, выходов=${midiPorts.outputs.length}`);
 
-        // --- 2. Сканирование устройств и протоколов ---
+        // -2- Сканирование устройств и протоколов
         const devices = await scanDevices(midiPorts);
         const protocols = await scanProtocols();
 
         const availableDevices = devices.filter(d => d.isAvailable !== false);
         logger.log(`📡 Найдено устройств: ${devices.length}, доступных: ${availableDevices.length}`);
 
-        // --- 3. Загрузка конфигурации ---
+        // -3- Загрузка конфигурации
         let config = await loadConfig();
         let device = null;
         let protocol = null;
@@ -84,7 +115,7 @@ async function startServer() {
                 // Устанавливаем базовое смещение
                 device.channelOffset = device.ports?.left?.offset || 0;
                 
-                logger.log(`✅ Найдена валидная конфигурация: ${device.name} → ${protocol.name}`);
+                logger.log(`📎 Найдена валидная конфигурация: ${device.name} → ${protocol.name}`);
                 if (device.ports?.left) {
                     logger.log(`   Левая панель: ${device.ports.left.input} → ${device.ports.left.output} (${device.ports.left.mode})`);
                 }
@@ -97,12 +128,12 @@ async function startServer() {
             }
         }
 
-        // --- 4. Интерактивный выбор (если нет валидной конфигурации) ---
+        // -4- Интерактивный выбор (если нет валидной конфигурации)
         if (!configValid || !config) {
-            logger.log('🔄 Интерактивная настройка...');
+            logger.log('⚙️ Интерактивная настройка...');
             if (availableDevices.length === 0) {
                 const ok = await confirmContinue('Нет доступных MIDI-устройств. Продолжить с ручным выбором?');
-                if (!ok) { logger.log('👋 Работа завершена.'); process.exit(0); }
+                if (!ok) { logger.log('🏁 Работа завершена.'); process.exit(0); }
             }
             
             const selection = await selectDeviceAndProtocol(
@@ -130,7 +161,7 @@ async function startServer() {
             config = await loadConfig();
         }
 
-        // --- 5. Финальная проверка ---
+        // -5- Финальная проверка
         if (!device || !protocol) {
             logger.error('❌ Не удалось настроить устройство.');
             process.exit(1);
@@ -140,47 +171,53 @@ async function startServer() {
         appState.selectedProtocol = protocol;
         appState.config = config;
 
-        // --- 6. Вывод информации о портах ---
-        const leftPort = device.ports?.left;
-        const rightPort = device.ports?.right;
+        // -6- Вывод информации о портах
+        const lPort = device.ports?.left;
+        const rPort = device.ports?.right;
         
-        logger.log(`\n✅ Устройство: ${device.name}`);
+        logger.log(`📎 Устройство: ${device.name}`);
         logger.log(`   Протокол: ${protocol.name} (v${protocol.version})`);
-        if (leftPort) {
-            logger.log(`   Левая панель: ${leftPort.input} → ${leftPort.output} (${leftPort.mode})`);
+        if (lPort) {
+            logger.log(`   L панель: ${lPort.input} → ${lPort.output} (${lPort.mode})`);
         }
-        if (rightPort) {
-            logger.log(`   Правая панель: ${rightPort.input} → ${rightPort.output} (${rightPort.mode})`);
+        if (rPort) {
+            logger.log(`   R панель: ${rPort.input} → ${rPort.output} (${rPort.mode})`);
         }
         logger.log(`   Каналов: ${device.hardware?.channels || 8}\n`);
 
-        // --- 7. Инициализация модулей ---
+        // -7- Инициализация модулей
         const browserManager = new BrowserManager();
         const page = await browserManager.connect();
         appState.page = page;
         appState.browser = browserManager;
-        logger.log('✅ Браузер подключен');
+        logger.log('☑️ Браузер подключен');
 
         const guiManager = new GUIManager(page);
         await guiManager.loadSelectors();
         await guiManager.syncTracks();
         appState.guiManager = guiManager;
-        logger.log('✅ GUI менеджер инициализирован');
+        logger.log('☑️ GUI менеджер инициализирован');
 
         const protocolInstance = protocol.instance || new (await import(`../protocols/${protocol.file}`)).default();
         const deviceRouter = new DeviceRouter(device, protocolInstance);
         deviceRouter.setGUIManager(guiManager);
         
         // Подключаем левый порт
-        if (leftPort) {
-            await deviceRouter.connect(leftPort.input, leftPort.output);
-            logger.log(`✅ MIDI-маршрутизатор (левая панель): ${leftPort.input} → ${leftPort.output}`);
+        if (lPort) {
+            await deviceRouter.connect(lPort.input, lPort.output);
+            logger.log(`☑️ MIDI-Router (L панель): ${lPort.input} → ${lPort.output}`);
         }
         
-        appState.deviceRouter = deviceRouter;
-        logger.log('✅ MIDI-маршрутизатор настроен');
+        // Подключаем правый порт
+        if (rPort) {
+            await deviceRouter.connect(rPort.input, rPort.output);
+            logger.log(`☑️ MIDI-Router (R панель): ${rPort.input} → ${rPort.output}`);
+        }
 
-        // --- 8. Обработка команд ---
+        appState.deviceRouter = deviceRouter;
+        logger.log('☑️ MIDI-Router настроен');
+
+        // -8- Обработка команд
         deviceRouter.onCommand(async (command) => {
             try {
                 // Определяем режим в зависимости от порта
@@ -204,25 +241,26 @@ async function startServer() {
             }
         });
 
-        // --- 9. Обратная связь ---
+        // -9- Обратная связь
         const feedbackLoop = new FeedbackLoop(page, deviceRouter, guiManager, { interval: 150, touchDelay: 50 });
         feedbackLoop.start();
         appState.feedbackLoop = feedbackLoop;
-        logger.log('✅ Обратная связь запущена');
+        logger.log('♻️ Обратная связь запущена');
 
         appState.isRunning = true;
-        logger.log('🎉 Сервер запущен!');
+        logger.log(`${sunoImage} Сервер запущен!`);
+        //logger.log('👍 Сервер запущен!');
 
-        // --- 10. Консольные команды ---
+        // -10- Консольные команды
         const cleanup = setupConsoleCommands(appState);
         appState.consoleCleanup = cleanup;
 
-        // --- 11. Обработка завершения ---
+        // -11- Обработка завершения
         setupShutdownHandler();
         setupErrorHandlers();
 
     } catch (error) {
-        logger.error('💥 Критическая ошибка:', error.message);
+        logger.error('☠️ Критическая ошибка:', error.message);
         console.error(error.stack);
         process.exit(1);
     }

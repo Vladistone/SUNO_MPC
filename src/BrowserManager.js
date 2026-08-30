@@ -6,7 +6,7 @@ import Logger from '../utils/Logger.js';
 
 export default class BrowserManager {
     constructor(options = {}) {
-        this.logger = new Logger('[BROWSER]');
+        this.logger = new Logger('[BROWSE]');
         this.browser = null;
         this.page = null;
         this.port = options.port || 9222;
@@ -17,7 +17,7 @@ export default class BrowserManager {
     // Подключение к запущенному браузеру
     async connect() {
         try {
-            this.logger.log(`🔌 Подключение к Chrome на порту ${this.port}...`);
+            this.logger.log(`🚧 Подключение к Chrome на порту ${this.port}...`);
             
             this.browser = await puppeteer.connect({
                 browserURL: `http://127.0.0.1:${this.port}`,
@@ -28,14 +28,14 @@ export default class BrowserManager {
             this.page = pages.find(p => p.url().includes('suno.com'));
 
             if (!this.page) {
-                this.logger.log('📄 Вкладка Suno не найдена. Открываем новую...');
+                this.logger.log('🖥️ Вкладка Suno не найдена. Открываем новую...');
                 this.page = await this.browser.newPage();
                 await this.page.goto(this.url, {
                     waitUntil: 'networkidle2',
                     timeout: 60000  // Увеличили до 60 секунд
                 });
             } else {
-                this.logger.log('✅ Подключены к существующей вкладке Suno Studio!');
+                this.logger.log('☑️ Подключены к существующей вкладке Suno Studio!');
                 // Убираем принудительную перезагрузку
                 // await this.page.reload({ waitUntil: 'networkidle2' });
             }
@@ -47,10 +47,10 @@ export default class BrowserManager {
             });
 
             this.page.on('pageerror', (error) => {
-                this.logger.error('⚠️ Ошибка выполнения скрипта:', error.message);
+                this.logger.error('⚠️ ', error.message);
             });
 
-            this.logger.log('✅ Браузер готов к работе');
+            this.logger.log('☑️ Браузер готов к работе');
             return this.page;
 
         } catch (error) {
@@ -76,7 +76,7 @@ export default class BrowserManager {
         if (!this.page) return;
         this.logger.log('🔄 Перезагрузка страницы...');
         await this.page.reload({ waitUntil: 'networkidle2' });
-        this.logger.log('✅ Страница перезагружена');
+        this.logger.log('♻️ Страница перезагружена');
     }
 
 
@@ -108,12 +108,12 @@ export default class BrowserManager {
     // Отключение от браузера
     async disconnect() {
         if (this.browser) {
-            this.logger.log('🔌 Отключение от браузера...');
+            this.logger.log('⏹️ Отключение от браузера...');
             await this.browser.disconnect();
             this.isConnected = false;
             this.browser = null;
             this.page = null;
-            this.logger.log('✅ Отключено');
+            this.logger.log('⛔️ Отключено');
         }
     }
 
@@ -121,7 +121,7 @@ export default class BrowserManager {
     async screenshot(path = 'screenshot.png') {
         if (!this.page) return;
         await this.page.screenshot({ path, fullPage: true });
-        this.logger.log(`📸 Скриншот сохранён: ${path}`);
+        this.logger.log(`🛟 Скриншот сохранён: ${path}`);
     }
 
     // Получить текущий URL

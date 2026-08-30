@@ -4,13 +4,13 @@
 import easymidi from 'easymidi';
 import Logger from '../utils/Logger.js';
 
-const logger = new Logger('[MIDI-ROUTER]');
+const logger = new Logger('[ROUTER]');
 
 export default class DeviceRouter {
     constructor(deviceConfig, protocol) {
         this.device = deviceConfig;
         this.protocol = protocol;
-        this.logger = new Logger('[MIDI-ROUTER]');
+        this.logger = new Logger('[ROUTER]');
         this.input = null;
         this.output = null;
         this.handlers = [];
@@ -20,11 +20,16 @@ export default class DeviceRouter {
         this.selectedTrack = 0;  // Для FX режима — выделенный трек
         this.guiManager = null;
         
-        // Инициализация состояний
-        const channelCount = deviceConfig.hardware?.channels || 8;
-        this.channelStates = {};
-        for (let i = 0; i < channelCount; i++) {
-            this.channelStates[i] = {
+        // ИСПРАВЛЕНО: Читаем строго из deviceConfig, который пришел на вход
+        this.curOffsets = {
+            left: deviceConfig.ports?.left?.offset !== undefined ? deviceConfig.ports.left.offset : 0,
+            right: deviceConfig.ports?.right?.offset !== undefined ? deviceConfig.ports.right.offset : 8
+        };
+
+        const chCount = deviceConfig.hardware?.channels || 8;
+        this.chStates = {};
+        for (let i = 0; i < chCount; i++) {
+            this.chStates[i] = {
                 fader: 0,
                 pan: 64,
                 mute: false,
@@ -42,7 +47,7 @@ export default class DeviceRouter {
                 }
             };
         }
-        
+
         // Регистрация обработчиков для разных режимов
         this.modeHandlers = {
             track: this._handleTrackMode.bind(this),
@@ -50,10 +55,14 @@ export default class DeviceRouter {
         };
     }
 
+    // ============================================================
+    // МЕТОДЫ РЕГИСТРАЦИИ (Вне конструктора)
+    // ============================================================
+
     // Регистрация GUI менеджера
     setGUIManager(guiManager) {
         this.guiManager = guiManager;
-        this.logger.log('✅ GUI менеджер зарегистрирован');
+        this.logger.log('☑️ GUI менеджер зарегистрирован');
     }
 
 
@@ -61,7 +70,7 @@ export default class DeviceRouter {
     onCommand(handler) {
         if (typeof handler === 'function') {
             this.handlers.push(handler);
-            this.logger.debug(`✅ Зарегистрирован обработчик (всего: ${this.handlers.length})`);
+            this.logger.debug(`☑️ Зарегистрирован обработчик (всего: ${this.handlers.length})`);
         }
     }
 
@@ -70,95 +79,186 @@ export default class DeviceRouter {
     // ============================================================
     _handleCC(msg) {
         try {
-            const abstractCommand = this.protocol.parse({
+            const abstrCmd = this.protocol.parse({
                 type: 'cc',
                 controller: msg.controller,
                 value: msg.value,
                 channel: msg.channel
             });
-            if (abstractCommand) {
-                this._dispatchCommand(abstractCommand);
+            if (abstrCmd) {
+                abstrCmd.port = msg.port; // <-- ФИКСИРУЕМ ПОРТ В АБСТРАКТНОЙ КОМАНДЕ
+                this._dispatchCommand(abstrCmd);
             }
         } catch (error) {
             this.logger.error('❌ Ошибка обработки CC:', error.message);
         }
     }
+
     _handleNoteOn(msg) {
         try {
-            const abstractCommand = this.protocol.parse({
+            const abstrCmd = this.protocol.parse({
                 type: 'noteOn',
                 note: msg.note,
                 velocity: msg.velocity,
                 channel: msg.channel
             });
-            if (abstractCommand) {
-                this._dispatchCommand(abstractCommand);
+            if (abstrCmd) {
+                abstrCmd.port = msg.port; // <-- ФИКСИРУЕМ ПОРТ В АБСТРАКТНОЙ КОМАНДЕ
+                this._dispatchCommand(abstrCmd);
             }
         } catch (error) {
             this.logger.error('❌ Ошибка обработки Note On:', error.message);
         }
     }
+
     _handleNoteOff(msg) {
         try {
-            const abstractCommand = this.protocol.parse({
+            const abstrCmd = this.protocol.parse({
                 type: 'noteOff',
                 note: msg.note,
                 velocity: msg.velocity,
                 channel: msg.channel
             });
-            if (abstractCommand) {
-                this._dispatchCommand(abstractCommand);
+            if (abstrCmd) {
+                abstrCmd.port = msg.port; // <-- ФИКСИРУЕМ ПОРТ В АБСТРАКТНОЙ КОМАНДЕ
+                this._dispatchCommand(abstrCmd);
             }
         } catch (error) {
             this.logger.error('❌ Ошибка обработки Note Off:', error.message);
         }
     }
+
     _handlePitchBend(msg) {
         try {
-            const abstractCommand = this.protocol.parse({
+            const abstrCmd = this.protocol.parse({
                 type: 'pitchBend',
                 value: msg.value,
                 channel: msg.channel
             });
-            if (abstractCommand) {
-                this._dispatchCommand(abstractCommand);
+            if (abstrCmd) {
+                abstrCmd.port = msg.port; // <-- ФИКСИРУЕМ ПОРТ В АБСТРАКТНОЙ КОМАНДЕ
+                this._dispatchCommand(abstrCmd);
             }
         } catch (error) {
             this.logger.error('❌ Ошибка обработки Pitch Bend:', error.message);
         }
     }
+
     _handleSysEx(msg) {
         try {
-            this.logger.debug(`📟 SysEx получен (${msg.length} байт)`);
+            this.logger.debug(`🎹 SysEx получен (${msg.length} байт)`);
         } catch (error) {
             this.logger.error('❌ Ошибка обработки SysEx:', error.message);
         }
     }
 
-    // Отправка команды всем зарегистрированным обработчикам
+    // ============================================================
+    // ОТПРАВКА КОМАНДЫ ВСЕМ ЗАРЕГИСТРИРОВАННЫМ ОБРАБОТЧИКАМ
+    // ============================================================
+    // ============================================================
+    // УНИВЕРСАЛЬНЫЙ КОНВЕЙЕР ДИСПЕТЧЕРИЗАЦИИ КОМАНД
+    // ============================================================
     _dispatchCommand(command) {
-        // Сохраняем состояние канала
+        if (!command) return;
+
+        // --- ЭТАП 1: ФИЛЬТР НАВИГАЦИИ (BANK / CHAN) ---
+        // Эти кнопки не имеют номера канала, они меняют живые смещения и поглощаются драйвером
+        switch (command.type) {
+            case 'bank_next':
+                this.curOffsets.left += 8;
+                this.curOffsets.right += 8;
+                this.logger.log(`🎛️ [DRIVER] BANK > Сдвиг. Текущие оффсеты: L=${this.curOffsets.left}, R=${this.curOffsets.right}`);
+                this._triggerHardwareRefresh(); 
+                return; // Команда поглощена драйвером
+
+            case 'bank_prev':
+                if (this.curOffsets.left >= 8) {
+                    this.curOffsets.left -= 8;
+                    this.curOffsets.right -= 8;
+                    this.logger.log(`🎛️ [DRIVER] BANK < Сдвиг. Текущие оффсеты: L=${this.curOffsets.left}, R=${this.curOffsets.right}`);
+                    this._triggerHardwareRefresh();
+                }
+                return;
+
+            case 'chan_next':
+                this.curOffsets.left += 1;
+                this.curOffsets.right += 1;
+                this.logger.log(`🎛️ [DRIVER] CHAN > Шаг вперед. Текущие оффсеты: L=${this.curOffsets.left}, R=${this.curOffsets.right}`);
+                this._triggerHardwareRefresh();
+                return;
+
+            case 'chan_prev':
+                if (this.curOffsets.left > 0) {
+                    this.curOffsets.left -= 1;
+                    this.curOffsets.right -= 1;
+                    this.logger.log(`🎛️ [DRIVER] CHAN < Шаг назад. Текущие оффсеты: L=${this.curOffsets.left}, R=${this.curOffsets.right}`);
+                    this._triggerHardwareRefresh();
+                }
+                return;
+        }
+
+        // --- ЭТАП 2: ДИНАМИЧЕСКИЙ РАСЧЕТ СМЕЩЕНИЯ ДЛЯ КОМАНД ТРЕКОВ ---
+        // Применяем смещение ПЕРЕД записью в chStates и отправкой наверх
+        if (command.channel !== undefined && command.port) {
+            const activeOffsets = this.curOffsets || { left: 0, right: 8 };
+            const offset = activeOffsets[command.port] || 0;
+            
+            // Вычисляем глобальный индекс трека в Suno Studio (0-13+)
+            command.channel = command.channel + offset;
+        }
+
+        // --- ЭТАП 3: АВТОНОМНЫЙ ПЕРЕХВАТ РЕЖИМА FX MODE (КНОПКА SELECT) ---
+        if (command.type === 'select') {
+            // Запоминаем глобальный индекс трека, на котором нажали кнопку SEL
+            this.selectedTrack = command.channel;
+            
+            // Если кнопка нажата (state === 'on'), переключаем пульт в FX режим, иначе возвращаем track
+            this.mode = (command.state === 'on') ? 'fx' : 'track';
+            
+            this.logger.log(`🎛️ [DRIVER] Режим пульта изменен: ${this.mode.toUpperCase()}. Выделенный трек: ${this.selectedTrack}`);
+            
+            // Оповещаем ваши внутренние обработчики режимов, если они объявлены в классе
+            if (this.modeHandlers && typeof this.modeHandlers[this.mode] === 'function') {
+                this.modeHandlers[this.mode](command);
+            }
+        }
+
+        // --- ЭТАП 4: ФИКСАЦИЯ СОСТОЯНИЯ В ВАШЕМ МАССИВЕ chStates И ОТПРАВКА В ORCHESTRATOR ---
         if (command.channel !== undefined) {
             const ch = command.channel;
+            
+            // Защитный динамический инициализатор ячеек при глубоких сдвигах BANK
+            if (!this.chStates[ch]) {
+                this.chStates[ch] = { fader: 0, pan: 64, mute: false, solo: false, select: false, isTouched: false, fx: { send1: 0, send2: 0, send3: 0, send4: 0, param1: 0, param2: 0, param3: 0 } };
+            }
+
+            // Записываем состояние
             switch (command.type) {
-                case 'fader': this.channelStates[ch].fader = command.value; break;
-                case 'vpot': this.channelStates[ch].pan = command.value; break;
-                case 'mute': this.channelStates[ch].mute = command.state === 'on'; break;
-                case 'solo': this.channelStates[ch].solo = command.state === 'on'; break;
-                case 'select': this.channelStates[ch].select = command.state === 'on'; break;
-                case 'touch': this.channelStates[ch].isTouched = true; break;
-                case 'release': this.channelStates[ch].isTouched = false; break;
+                case 'fader': this.chStates[ch].fader = command.value; break;
+                case 'vpot': this.chStates[ch].pan = command.value; break;
+                case 'mute': this.chStates[ch].mute = command.state === 'on'; break;
+                case 'solo': this.chStates[ch].solo = command.state === 'on'; break;
+                case 'select': this.chStates[ch].select = command.state === 'on'; break;
+                case 'touch': this.chStates[ch].isTouched = true; break;
+                case 'release': this.chStates[ch].isTouched = false; break;
             }
         }
         
-        // Вызываем обработчики
+        // Отправляем очищенную команду с правильным глобальным индексом канала наверх в core/index.js
         this.handlers.forEach(handler => {
             try {
                 handler(command);
             } catch (error) {
-                this.logger.error('❌ Ошибка в обработчике:', error.message);
+                this.logger.error('❌ Ошибка в обработчике оркестратора:', error.message);
             }
         });
+    }
+
+    // Служебный метод принудительного обновления моторов
+    _triggerHardwareRefresh() {
+        if (global.appState?.feedbackLoop && typeof global.appState.feedbackLoop.forceFullSync === 'function') {
+            global.appState.feedbackLoop.forceFullSync(); 
+        }
     }
 
     // ============================================================
@@ -198,46 +298,53 @@ export default class DeviceRouter {
             const inputs = easymidi.getInputs();
             const outputs = easymidi.getOutputs();
             
-            // Инициализируем объекты для хранения портов
+            // Инициализируем объекты для хранения инстансов easymidi
             this.inputs = {};
             this.outputs = {};
 
-            const leftPort = this.config.ports?.left;
-            const rightPort = this.config.ports?.right;
+            // Защищенный выбор целевого объекта устройства (используем то, что сохранено в конструкторе)
+            const targetDevice = this.device || this.config;
+            
+            if (!targetDevice) {
+                throw new Error('Объект устройства не инициализирован в конструкторе роутера');
+            }
+
+            const lPort = targetDevice.ports?.left;
+            const rPort = targetDevice.ports?.right;
 
             // --- 1. Подключаем ЛЕВУЮ панель ---
-            if (leftPort) {
-                this.logger.log(`🔌 Подключение левой панели: ${leftPort.input || 'none'} → ${leftPort.output || 'none'}`);
+            if (lPort) {
+                this.logger.log(`📎 Подключение левой панели: ${lPort.input || 'none'} → ${lPort.output || 'none'}`);
                 
-                if (leftPort.input && leftPort.input !== 'none' && inputs.includes(leftPort.input)) {
-                    this.inputs.left = new easymidi.Input(leftPort.input);
-                    this._bindEvents(this.inputs.left, 'left'); // Привязываем слушатели с флагом панели
-                    this.logger.log(`✅ MIDI-вход создан (Левый): ${leftPort.input}`);
+                if (lPort.input && lPort.input !== 'none' && inputs.includes(lPort.input)) {
+                    this.inputs.left = new easymidi.Input(lPort.input);
+                    this._bindEvents(this.inputs.left, 'left');
+                    this.logger.log(`☑️ MIDI-IN L создан: ${lPort.input}`);
                 }
-                if (leftPort.output && leftPort.output !== 'none' && outputs.includes(leftPort.output)) {
-                    this.outputs.left = new easymidi.Output(leftPort.output);
-                    this.logger.log(`✅ MIDI-выход создан (Левый): ${leftPort.output}`);
+                if (lPort.output && lPort.output !== 'none' && outputs.includes(lPort.output)) {
+                    this.outputs.left = new easymidi.Output(lPort.output);
+                    this.logger.log(`☑️ MIDI-OUT L создан: ${lPort.output}`);
                 }
             }
 
-            // --- 2. Подключаем ПРАВУЮ панель (Ваш 6-й порт!) ---
-            if (rightPort) {
-                this.logger.log(`🔌 Подключение правой панели: ${rightPort.input || 'none'} → ${rightPort.output || 'none'}`);
+            // --- 2. Подключаем ПРАВУЮ панель ---
+            if (rPort) {
+                this.logger.log(`📎 Подключение правой панели: ${rPort.input || 'none'} → ${rPort.output || 'none'}`);
                 
-                if (rightPort.input && rightPort.input !== 'none' && inputs.includes(rightPort.input)) {
-                    this.inputs.right = new easymidi.Input(rightPort.input);
-                    this._bindEvents(this.inputs.right, 'right'); // Привязываем слушатели с флагом панели
-                    this.logger.log(`✅ MIDI-вход создан (Правый): ${rightPort.input}`);
+                if (rPort.input && rPort.input !== 'none' && inputs.includes(rPort.input)) {
+                    this.inputs.right = new easymidi.Input(rPort.input);
+                    this._bindEvents(this.inputs.right, 'right');
+                    this.logger.log(`☑️ MIDI-IN R создан: ${rPort.input}`);
                 }
-                if (rightPort.output && rightPort.output !== 'none' && outputs.includes(rightPort.output)) {
-                    this.outputs.right = new easymidi.Output(rightPort.output);
-                    this.logger.log(`✅ MIDI-выход создан (Правый): ${rightPort.output}`);
+                if (rPort.output && rPort.output !== 'none' && outputs.includes(rPort.output)) {
+                    this.outputs.right = new easymidi.Output(rPort.output);
+                    this.logger.log(`☑️ MIDI-OUT R создан: ${rPort.output}`);
                 }
             }
 
-            // Для обратной совместимости с однопортовыми девайсами
-            if (!leftPort && !rightPort && this.config.ports?.input) {
-                const flat = this.config.ports;
+            // Для обратной совместимости с плоской структурой
+            if (!lPort && !rPort && targetDevice.ports?.input) {
+                const flat = targetDevice.ports;
                 if (inputs.includes(flat.input)) {
                     this.inputs.left = new easymidi.Input(flat.input);
                     this._bindEvents(this.inputs.left, 'left');
@@ -248,7 +355,7 @@ export default class DeviceRouter {
             }
 
             this.isConnected = !!(this.inputs.left || this.inputs.right || this.outputs.left || this.outputs.right);
-            this.logger.log('✅ MIDI-маршрутизатор успешно настроен');
+            this.logger.log('☑️ MIDI-маршрутизатор успешно настроен');
 
         } catch (error) {
             this.logger.error('❌ Ошибка подключения MIDI портов:', error.message);
@@ -256,12 +363,13 @@ export default class DeviceRouter {
         }
     }
 
-    // Служебный метод для красивой привязки событий (чтобы не дублировать код)
+    // Служебный метод для привязки событий (чтобы не дублировать код)
     _bindEvents(inputInstance, portName) {
-        // Обертка, которая добавляет в команду инфо о том, с какого порта (left/right) она пришла
         const wrapHandler = (handler) => {
             return (msg) => {
-                msg.port = portName; // Запоминаем порт для секции switch в index.js!
+                // Вызываем ваш стандартный обработчик (_handlePitchBend и т.д.)
+                // Но подмешиваем порт прямо во входящий msg
+                msg.port = portName; 
                 handler(msg);
             };
         };
@@ -281,27 +389,27 @@ export default class DeviceRouter {
 
         // По умолчанию целимся в левую панель
         let targetPort = 'left';
-        let virtualChannel = message.channel || 0; 
-        let hardwareMidiChannel = virtualChannel;
+        let vChannel = message.channel || 0; 
+        let hwMidiCh = vChannel;
 
-        const leftCfg = this.config.ports?.left;
-        const rightCfg = this.config.ports?.right;
+        const lCfg = this.config.ports?.left;
+        const rCfg = this.config.ports?.right;
 
         // Получаем смещения из конфига (или дефолтные 0 и 8, если они не заданы)
-        const leftOffset = leftCfg?.offset !== undefined ? leftCfg.offset : 0;
-        const rightOffset = rightCfg?.offset !== undefined ? rightCfg.offset : 8;
+        const lOffset = lCfg?.offset !== undefined ? lCfg.offset : 0;
+        const rOffset = rCfg?.offset !== undefined ? rCfg.offset : 8;
 
         // ДИНАМИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ПАНЕЛИ:
         // Проверяем, попадает ли виртуальный канал в диапазон правой панели (строго 8 каналов)
-        if (rightCfg && virtualChannel >= rightOffset && virtualChannel < (rightOffset + 8)) {
+        if (rCfg && vChannel >= rOffset && vChannel < (rOffset + 8)) {
             targetPort = 'right';
             // Вычисляем физический канал пульта внутри его 8-канальной HUI-сессии (всегда 0-7)
-            hardwareMidiChannel = virtualChannel - rightOffset;
+            hwMidiCh = vChannel - rOffset;
         } 
         // Проверяем, попадает ли виртуальный канал в диапазон левой панели
-        else if (leftCfg && virtualChannel >= leftOffset && virtualChannel < (leftOffset + 8)) {
+        else if (lCfg && vChannel >= lOffset && vChannel < (lOffset + 8)) {
             targetPort = 'left';
-            hardwareMidiChannel = virtualChannel - leftOffset;
+            hwMidiCh = vChannel - lOffset;
         }
 
         // Выбираем соответствующий физический MIDI-OUT
@@ -317,7 +425,7 @@ export default class DeviceRouter {
                 
                 output.send('pitch', {
                     value: message.value !== undefined ? message.value : 8192,
-                    channel: hardwareMidiChannel // Направляем на правильный физический фейдер 0-7
+                    channel: hwMidiCh // Направляем на правильный физический фейдер 0-7
                 });
                 return true;
             }
@@ -332,7 +440,7 @@ export default class DeviceRouter {
             }
             
             // Для остальных команд (cc, noteon)
-            const cleanMessage = { ...message, channel: hardwareMidiChannel };
+            const cleanMessage = { ...message, channel: hwMidiCh };
             output.send(message.type, cleanMessage);
             return true;
 
@@ -348,25 +456,25 @@ export default class DeviceRouter {
     sendFeedback(command) {
         if (!this.output) return false; // Защита: нет выхода — нет фидбека
 
-        const midiMessage = this.protocol.format(command);
-        if (!midiMessage) return false;
+        const midiMsg = this.protocol.format(command);
+        if (!midiMsg) return false;
 
-        if (midiMessage.type === 'pitchBend' || midiMessage.type === 'pitchbend' || 
-            midiMessage.type === 'pitchband' || midiMessage.type === 'pitchwheel' || midiMessage.type === 'pitch') {
+        if (midiMsg.type === 'pitchBend' || midiMsg.type === 'pitchbend' || 
+            midiMsg.type === 'pitchband' || midiMsg.type === 'pitchwheel' || midiMsg.type === 'pitch') {
             
-            midiMessage.type = 'pitch'; // Гарантируем правильный тип для easymidi
-            if (midiMessage.value !== undefined) {
-                midiMessage.value = Math.min(16383, Math.max(0, midiMessage.value));
+            midiMsg.type = 'pitch'; // Гарантируем правильный тип для easymidi
+            if (midiMsg.value !== undefined) {
+                midiMsg.value = Math.min(16383, Math.max(0, midiMsg.value));
             }
         }
-        return this.send(midiMessage);
+        return this.send(midiMsg);
     }
 
     // ============================================================
     // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
     // ============================================================
     getChannelState(channel) {
-        return this.channelStates[channel] || null;
+        return this.chStates[channel] || null;
     }
 
     isActive() {
@@ -377,15 +485,15 @@ export default class DeviceRouter {
         if (this.input) {
             this.input.close();
             this.input = null;
-            this.logger.log('🔌 MIDI-вход закрыт');
+            this.logger.log('⛔️ MIDI-IN закрыт');
         }
         if (this.output) {
             this.output.close();
             this.output = null;
-            this.logger.log('🔌 MIDI-выход закрыт');
+            this.logger.log('⛔️ MIDI-OUT закрыт');
         }
         this.isConnected = false;
         this.handlers = [];
-        this.logger.log('✅ MIDI-маршрутизатор отключен');
+        this.logger.log('⛔️ MIDI-маршрутизатор отключен');
     }
 }

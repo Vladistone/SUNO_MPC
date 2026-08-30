@@ -8,7 +8,7 @@ export default class FeedbackLoop {
         this.page = page;
         this.deviceRouter = deviceRouter;
         this.guiManager = guiManager;
-        this.logger = new Logger('[FEEDBACK]');
+        this.logger = new Logger('[FDBACK]');
         
         this.options = {
             interval: options.interval || 150,      // Интервал опроса (мс)
@@ -31,7 +31,7 @@ export default class FeedbackLoop {
             solo: {}
         };
         
-        this.logger.log('✅ FeedbackLoop создан');
+        this.logger.log('☑️ FeedbackLoop создан');
     }
 
     // Запуск цикла обратной связи
@@ -63,7 +63,7 @@ export default class FeedbackLoop {
         }
         
         this.isRunning = false;
-        this.logger.log('⏹️ FeedbackLoop остановлен');
+        this.logger.log('⛔️FeedbackLoop остановлен');
     }
 
     // Обработка касания фейдера (отключает обратную связь)
@@ -75,7 +75,7 @@ export default class FeedbackLoop {
             this.touchTimeout = null;
         }
         
-        this.logger.debug(`👆 Касание фейдера ${channel + 1}`);
+        this.logger.debug(`〓 Касание фейдера ${channel + 1}`);
     }
 
     // Обработка отпускания фейдера (включает обратную связь с задержкой)
@@ -87,7 +87,7 @@ export default class FeedbackLoop {
         
         this.touchTimeout = setTimeout(() => {
             this.isTouched = false;
-            this.logger.debug(`👋 Отпускание фейдера ${channel + 1} (обратная связь восстановлена)`);
+            this.logger.debug(`𝌚 Отпускание фейдера ${channel + 1} (обратная связь восстановлена)`);
         }, this.options.touchDelay);
     }
 
@@ -217,7 +217,7 @@ export default class FeedbackLoop {
                         value: midiValue,
                         channel: channel
                     });
-                    this.logger.debug(`📤 Volume ${channel + 1}: ${state.volume.toFixed(1)}% → MIDI ${midiValue}`);
+                    this.logger.debug(`🎚️ Volume ${channel + 1}: ${state.volume.toFixed(1)}% → MIDI ${midiValue}`);
                 }
             }
             
@@ -232,7 +232,7 @@ export default class FeedbackLoop {
                         state: state.muted ? 'on' : 'off',
                         channel: channel
                     });
-                    this.logger.debug(`📤 Mute ${channel + 1}: ${state.muted ? 'ON' : 'OFF'}`);
+                    this.logger.debug(`🚫 Mute ${channel + 1}: ${state.muted ? 'ON' : 'OFF'}`);
                 }
             }
             
@@ -247,7 +247,7 @@ export default class FeedbackLoop {
                         state: state.soloed ? 'on' : 'off',
                         channel: channel
                     });
-                    this.logger.debug(`📤 Solo ${channel + 1}: ${state.soloed ? 'ON' : 'OFF'}`);
+                    this.logger.debug(`🔆 Solo ${channel + 1}: ${state.soloed ? 'ON' : 'OFF'}`);
                 }
             }
         }
@@ -312,7 +312,7 @@ export default class FeedbackLoop {
                 type: 'sysex',
                 data: sysexBytes
             });
-            this.logger.debug(`📟 LCD ${channel + 1}: "${formattedName}"`);
+            this.logger.debug(`🎹 LCD ${channel + 1}: "${formattedName}"`);
         } catch (error) {
             this.logger.error(`❌ Ошибка отправки LCD ${channel}:`, error.message);
         }
@@ -329,14 +329,14 @@ export default class FeedbackLoop {
 
     // Принудительная синхронизация всех состояний
     async forceSync() {
-        this.logger.log('🔄 Принудительная синхронизация...');
+        this.logger.log('🔁 Принудительная синхронизация...');
         try {
             const currentState = await this._getGUIState();
             if (currentState) {
                 // Сбрасываем предыдущие значения, чтобы синхронизировать всё
                 this.previousValues = { volume: {}, mute: {}, solo: {} };
                 await this._processStateChanges(currentState);
-                this.logger.log('✅ Принудительная синхронизация выполнена');
+                this.logger.log('☑️ Принудительная синхронизация выполнена');
             }
         } catch (error) {
             this.logger.error('❌ Ошибка принудительной синхронизации:', error.message);

@@ -4,7 +4,7 @@
 import inquirer from 'inquirer';
 import Logger from './Logger.js';
 
-const logger = new Logger('[MENU]');
+const logger = new Logger('[ MENU ]');
 
 export async function selectDeviceAndProtocol(devices, protocols) {
     if (devices.length === 0) {
@@ -31,7 +31,7 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     const { deviceId } = await inquirer.prompt([{
         type: 'list',
         name: 'deviceId',
-        message: 'Выберите MIDI-контроллер:',
+        message: '❓ Выберите MIDI-контроллер:',
         choices: deviceChoices,
         default: devices[0]?.id
     }]);
@@ -51,7 +51,7 @@ export async function selectDeviceAndProtocol(devices, protocols) {
         const { protocolId } = await inquirer.prompt([{
             type: 'list',
             name: 'protocolId',
-            message: 'Выберите протокол:',
+            message: '❓ Выберите протокол:',
             choices: protocolChoices,
             default: selectedDevice.defaultProtocol
         }]);
@@ -73,13 +73,13 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     let leftPort = null;
     if (leftPorts.length > 0) {
         const choices = leftPorts.map(p => ({
-            name: `${p.input} → ${p.output} (${p.description || 'Левая панель'})`,
+            name: `${p.input} → ${p.output} (${p.description || 'L панель'})`,
             value: p.input
         }));
         const { leftInput } = await inquirer.prompt([{
             type: 'list',
             name: 'leftInput',
-            message: 'Выберите порт для ЛЕВОЙ панели (каналы 1-8):',
+            message: '❓ Choose the port for L panel (1-8 ch.):',
             choices,
             default: leftPorts[0]?.input
         }]);
@@ -90,13 +90,13 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     let rightPort = null;
     if (rightPorts.length > 0) {
         const choices = rightPorts.map(p => ({
-            name: `${p.input} → ${p.output} (${p.description || 'Правая панель'})`,
+            name: `${p.input} → ${p.output} (${p.description || 'R панель'})`,
             value: p.input
         }));
         const { rightInput } = await inquirer.prompt([{
             type: 'list',
             name: 'rightInput',
-            message: 'Выберите порт для ПРАВОЙ панели (каналы 9-16):',
+            message: '❓ Choose the post for R panel (9-16 ch.):',
             choices,
             default: rightPorts[0]?.input
         }]);
@@ -109,25 +109,25 @@ export async function selectDeviceAndProtocol(devices, protocols) {
             {
                 type: 'input',
                 name: 'leftInput',
-                message: 'Введите MIDI-вход для ЛЕВОЙ панели:',
+                message: '❓ Введите MIDI-IN для L панели:',
                 default: 'ipMIDI Port 5'
             },
             {
                 type: 'input',
                 name: 'leftOutput',
-                message: 'Введите MIDI-выход для ЛЕВОЙ панели:',
+                message: '❓ Введите MIDI-OUT для L панели:',
                 default: 'ipMIDI Port 5'
             },
             {
                 type: 'input',
                 name: 'rightInput',
-                message: 'Введите MIDI-вход для ПРАВОЙ панели:',
+                message: '❓ Введите MIDI-IN для R панели:',
                 default: 'ipMIDI Port 6'
             },
             {
                 type: 'input',
                 name: 'rightOutput',
-                message: 'Введите MIDI-выход для ПРАВОЙ панели:',
+                message: '❓ Введите MIDI-OUT для R панели:',
                 default: 'ipMIDI Port 6'
             }
         ]);
@@ -155,7 +155,7 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     const { leftMode } = await inquirer.prompt([{
         type: 'list',
         name: 'leftMode',
-        message: 'Режим ЛЕВОЙ панели:',
+        message: '❓ Режим L панели:',
         choices: modeChoices,
         default: leftPort?.mode || 'track'
     }]);
@@ -163,7 +163,7 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     const { rightMode } = await inquirer.prompt([{
         type: 'list',
         name: 'rightMode',
-        message: 'Режим ПРАВОЙ панели:',
+        message: '❓ Режим R панели:',
         choices: modeChoices,
         default: rightPort?.mode || 'fx'
     }]);
@@ -189,9 +189,9 @@ export async function selectDeviceAndProtocol(devices, protocols) {
     selectedDevice.channelOffset = 0; // Базовое смещение, будет переопределено при инициализации
 
     // --- 6. Вывод информации ---
-    logger.log(`\n📋 Конфигурация:`);
-    logger.log(`   Левая панель: ${ports.left.input} → ${ports.left.output} (${leftMode})`);
-    logger.log(`   Правая панель: ${ports.right.input} → ${ports.right.output} (${rightMode})`);
+    logger.log(`📐 Default Configuration:`);
+    logger.log(`   L панель: ${ports.left.input} → ${ports.left.output} (${leftMode})`);
+    logger.log(`   R панель: ${ports.right.input} → ${ports.right.output} (${rightMode})`);
 
     return { device: selectedDevice, protocol: selectedProtocol };
 }

@@ -3,10 +3,10 @@
 
 import Logger from './Logger.js';
 
-const logger = new Logger('[CMD]');
+const logger = new Logger('[KEYCMD]');
 
 export function setupConsoleCommands(appState) {
-    console.log('\n🔄 Команды:');
+    console.log('\n🔤 Команды:');
     console.log('  r  - перезагрузить страницу');
     console.log('  s  - принудительная синхронизация');
     console.log('  c  - показать конфигурацию');
@@ -23,21 +23,21 @@ export function setupConsoleCommands(appState) {
         switch (k) {
             case 'q': case '\u0003': await shutdown?.(); break;
             case 'r':
-                logger.log('🔄 Перезагрузка...');
+                logger.log('♻️ Перезагрузка...');
                 try {
                     await page.reload({ waitUntil: 'networkidle2' });
                     await guiManager.syncTracks();
                     await feedbackLoop.forceSync();
-                    logger.log('✅ Перезагрузка завершена');
+                    logger.log('☑️ Перезагрузка завершена');
                 } catch (e) { logger.error('❌ Ошибка:', e.message); }
                 break;
             case 's':
-                logger.log('🔄 Синхронизация...');
-                try { await feedbackLoop.forceSync(); logger.log('✅ Синхронизация завершена'); }
+                logger.log('🔁 Синхронизация...');
+                try { await feedbackLoop.forceSync(); logger.log('☑️ Синхронизация завершена'); }
                 catch (e) { logger.error('❌ Ошибка:', e.message); }
                 break;
             case 'c':
-                console.log('\n📋 КОНФИГУРАЦИЯ');
+                console.log('\n⚙️ КОНФИГУРАЦИЯ');
                 console.log('═'.repeat(50));
                 console.log(`  Устройство:   ${selectedDevice?.name || 'не выбрано'}`);
                 console.log(`  Протокол:     ${selectedProtocol?.name || 'не выбран'}`);
