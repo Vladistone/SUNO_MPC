@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suno Studio - GMT Repository Manager</title>
+    <style>
+        :root {
+            --bg-dark: #121214;
+            --bg-panel: #1a1a1e;
+            --bg-input: #26262b;
+            --border-color: #33333b;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #2563eb;
+            --accent-hover: #3b82f6;
+            --success: #16a34a;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        /* Sidebar / Repository List */
+        .sidebar {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+        }
+
+        .sidebar h2 {
+            font-size: 1.2rem;
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .controller-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .controller-item {
+            padding: 10px 12px;
+            background: var(--bg-input);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .controller-item:hover {
+            border-color: var(--accent);
+        }
+
+        .controller-item.active {
+            background: var(--accent);
+            border-color: var(--accent-hover);
+        }
+
+        .controller-info .name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .controller-info .vendor {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .controller-item.active .vendor {
+            color: #d1d5db;
+        }
+
+        .btn-clone {
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .btn-clone:hover { background: #64748b; }
+
+        .btn-add {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .btn-add:hover { background: var(--accent-hover); }
+
+        /* Main Workspace / Editor */
+        .workspace {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+        }
+
+        .workspace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .workspace-header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-save {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-export {
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .form-container {
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .section-block {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .section-block h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            color: var(--accent-hover);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 5px;
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            width: 240px;
+            font-size: 0.85rem;
+            font-family: monospace;
+            color: var(--text-muted);
+        }
+
+        .form-group input[type="text"],
+        .form-group select {
+            flex-grow: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        /* Preview Pane */
+        .preview-pane {
+            display: flex;
+            flex-direction: column;
+            background: #0d0d0f;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .preview-pane h3 {
+            margin-top: 0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .raw-output {
+            flex-grow: 1;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            background: #000;
+            color: #38bdf8;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-y: auto;
+            white-space: pre;
+            border: 1px solid #222;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Репозиторий контроллеров -->
+    <div class="sidebar">
+        <h2>Репозиторий GMT</h2>
+        <ul class="controller-list" id="controllerList">
+            <!-- Элементы генерируются динамически -->
+        </ul>
+        <button class="btn-add" onclick="createNewConfig()">+ Новый контроллер</button>
+    </div>
+
+    <!-- Редактор матрицы -->
+    <div class="workspace">
+        <div class="workspace-header">
+            <div>
+                <h1 id="currentDeviceName">SSL Nucleus 2</h1>
+                <div style="font-size: 0.8rem; color: var(--text-muted);" id="currentDeviceId">ID: ssl-nucleus2-master</div>
+            </div>
+            <div class="actions">
+                <button class="btn-export" onclick="exportTxt()">Скачать .TXT (GMT)</button>
+                <button class="btn-save" onclick="saveCurrent()">Сохранить в пул</button>
+            </div>
+        </div>
+
+        <div class="editor-grid">
+            <!-- Левая часть: Форма ввода параметров -->
+            <div class="form-container" id="formContainer">
+                <!-- Метаданные -->
+                <div class="section-block">
+                    <h3>META DATA & CONNECTIVITY</h3>
+                    <div class="form-group">
+                        <label>DEVICE_ID</label>
+                        <input type="text" id="DEVICE_ID" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>DEVICE_NAME</label>
+                        <input type="text" id="DEVICE_NAME" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>VENDOR</label>
+                        <input type="text" id="VENDOR" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>PROTOCOLS_NUMBER</label>
+                        <input type="text" id="PROTOCOLS_NUMBER" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>TOTAL_DAW_LAYERS</label>
+                        <input type="text" id="TOTAL_DAW_LAYERS" oninput="updatePreview()">
+                    </div>
+                </div>
+
+                <!-- Архитектура -->
+                <div class="section-block">
+                    <h3>HARDWARE ARCHITECTURE</h3>
+                    <div class="form-group">
+                        <label>TOTAL_PHYSICAL_PORTS</label>
+                        <input type="text" id="TOTAL_PHYSICAL_PORTS" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>TOTAL_PHYSICAL_CHANNELS</label>
+                        <input type="text" id="TOTAL_PHYSICAL_CHANNELS" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>FADER_MOTORIZED_COUNT</label>
+                        <input type="text" id="FADER_MOTORIZED_COUNT" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>VPOT_ENCODER_COUNT</label>
+                        <input type="text" id="VPOT_ENCODER_COUNT" oninput="updatePreview()">
+                    </div>
+                </div>
+
+                <!-- Дисплеи и Фидбек -->
+                <div class="section-block">
+                    <h3>DISPLAY & FEEDBACK</h3>
+                    <div class="form-group">
+                        <label>FB_LCD_SCRIBBLE_STRIPS</label>
+                        <input type="checkbox" id="FB_LCD_SCRIBBLE_STRIPS" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>LCD_RESPONSABLE</label>
+                        <input type="checkbox" id="LCD_RESPONSABLE" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>MCU_CHARS_PER_CHANNEL</label>
+                        <input type="text" id="MCU_CHARS_PER_CHANNEL" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>HUI_CHARS_PER_CHANNEL</label>
+                        <input type="text" id="HUI_CHARS_PER_CHANNEL" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>LCD_CHANNEL_SPACER_CHAR</label>
+                        <input type="text" id="LCD_CHANNEL_SPACER_CHAR" oninput="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>FB_LED_7_SEG_CHARS_COUNT</label>
+                        <input type="text" id="FB_LED_7_SEG_CHARS_COUNT" oninput="updatePreview()">
+                    </div>
+                </div>
+
+                <!-- Специальные режимы -->
+                <div class="section-block">
+                    <h3>EXPRESSION & HID</h3>
+                    <div class="form-group">
+                        <label>SUPPORT_MPE</label>
+                        <input type="checkbox" id="SUPPORT_MPE" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>SUPPORT_BREATH_CONTROL</label>
+                        <input type="checkbox" id="SUPPORT_BREATH_CONTROL" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>HID_KEYBOARD_EMULATION</label>
+                        <input type="checkbox" id="HID_KEYBOARD_EMULATION" onchange="updatePreview()">
+                    </div>
+                    <div class="form-group">
+                        <label>FOLLOW_KEY_STATE_SUPPORT</label>
+                        <input type="checkbox" id="FOLLOW_KEY_STATE_SUPPORT" onchange="updatePreview()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая часть: Живой рендеринг исходного .TXT с ТАБами -->
+            <div class="preview-pane">
+                <h3>Live GMT Output Syntax (TAB-Separated)</h3>
+                <div class="raw-output" id="rawOutput"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Первоначальный пул аппаратных контроллеров (Репозиторий)
+    let repository = [
+        {
+            DEVICE_ID: "ssl-nucleus2-master",
+            DEVICE_NAME: "SSL Nucleus 2",
+            VENDOR: "Solid State Logic",
+            PROTOCOLS_NUMBER: 3,
+            TOTAL_DAW_LAYERS: 3,
+            TOTAL_PHYSICAL_PORTS: 3,
+            TOTAL_PHYSICAL_CHANNELS: 8,
+            FADER_MOTORIZED_COUNT: 8,
+            VPOT_ENCODER_COUNT: 8,
+            FB_LCD_SCRIBBLE_STRIPS: true,
+            LCD_RESPONSABLE: true,
+            MCU_CHARS_PER_CHANNEL: 7,
+            HUI_CHARS_PER_CHANNEL: 4,
+            LCD_CHANNEL_SPACER_CHAR: "|",
+            FB_LED_7_SEG_CHARS_COUNT: 10,
+            SUPPORT_MPE: false,
+            SUPPORT_BREATH_CONTROL: false,
+            HID_KEYBOARD_EMULATION: true,
+            FOLLOW_KEY_STATE_SUPPORT: true
+        },
+        {
+            DEVICE_ID: "nektar-impact-lx25",
+            DEVICE_NAME: "Impact LX25+",
+            VENDOR: "Nektar",
+            PROTOCOLS_NUMBER: 1,
+            TOTAL_DAW_LAYERS: 1,
+            TOTAL_PHYSICAL_PORTS: 1,
+            TOTAL_PHYSICAL_CHANNELS: 1,
+            FADER_MOTORIZED_COUNT: 0,
+            VPOT_ENCODER_COUNT: 8,
+            FB_LCD_SCRIBBLE_STRIPS: false,
+            LCD_RESPONSABLE: false,
+            MCU_CHARS_PER_CHANNEL: 0,
+            HUI_CHARS_PER_CHANNEL: 0,
+            LCD_CHANNEL_SPACER_CHAR: "NA",
+            FB_LED_7_SEG_CHARS_COUNT: 3,
+            SUPPORT_MPE: false,
+            SUPPORT_BREATH_CONTROL: false,
+            HID_KEYBOARD_EMULATION: false,
+            FOLLOW_KEY_STATE_SUPPORT: false
+        }
+    ];
+
+    let activeId = "ssl-nucleus2-master";
+
+    // Инициализация интерфейса
+    function init() {
+        renderSidebar();
+        loadController(activeId);
+    }
+
+    function renderSidebar() {
+        const list = document.getElementById('controllerList');
+        list.innerHTML = '';
+        repository.forEach(dev => {
+            const li = document.createElement('li');
+            li.className = `controller-item ${dev.DEVICE_ID === activeId ? 'active' : ''}`;
+            li.onclick = () => loadController(dev.DEVICE_ID);
+
+            li.innerHTML = `
+                <div class="controller-info">
+                    <div class="name">${dev.DEVICE_NAME}</div>
+                    <div class="vendor">${dev.VENDOR}</div>
+                </div>
+                <button class="btn-clone" onclick="cloneController(event, '${dev.DEVICE_ID}')">Клон</button>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function loadController(id) {
+        activeId = id;
+        const dev = repository.find(d => d.DEVICE_ID === id);
+        if (!dev) return;
+
+        document.getElementById('currentDeviceName').innerText = dev.DEVICE_NAME;
+        document.getElementById('currentDeviceId').innerText = `ID: ${dev.DEVICE_ID}`;
+
+        // Заполняем поля формы
+        Object.keys(dev).forEach(key => {
+            const input = document.getElementById(key);
+            if (input) {
+                if (input.type === 'checkbox') {
+                    input.checked = dev[key];
+                } else {
+                    input.value = dev[key];
+                }
+            }
+        });
+
+        renderSidebar();
+        updatePreview();
+    }
+
+    // Логика клонирования пула (Прямо в WebIF)
+    function cloneController(event, id) {
+        event.stopPropagation(); // Предотвращаем клик по строке
+        const source = repository.find(d => d.DEVICE_ID === id);
+        if (!source) return;
+
+        const clone = JSON.parse(JSON.stringify(source));
+        clone.DEVICE_ID = `${source.DEVICE_ID}-clone-${Date.now().toString().slice(-4)}`;
+        clone.DEVICE_NAME = `${source.DEVICE_NAME} (Копия)`;
+
+        repository.push(clone);
+        activeId = clone.DEVICE_ID;
+        init();
+    }
+
+    function createNewConfig() {
+        const newDev = {
+            DEVICE_ID: `generic-controller-${Date.now().toString().slice(-4)}`,
+            DEVICE_NAME: "Новый Контроллер",
+            VENDOR: "Generic",
+            PROTOCOLS_NUMBER: 1,
+            TOTAL_DAW_LAYERS: 1,
+            TOTAL_PHYSICAL_PORTS: 1,
+            TOTAL_PHYSICAL_CHANNELS: 8,
+            FADER_MOTORIZED_COUNT: 0,
+            VPOT_ENCODER_COUNT: 8,
+            FB_LCD_SCRIBBLE_STRIPS: false,
+            LCD_RESPONSABLE: false,
+            MCU_CHARS_PER_CHANNEL: 0,
+            HUI_CHARS_PER_CHANNEL: 0,
+            LCD_CHANNEL_SPACER_CHAR: "NA",
+            FB_LED_7_SEG_CHARS_COUNT: 0,
+            SUPPORT_MPE: false,
+            SUPPORT_BREATH_CONTROL: false,
+            HID_KEYBOARD_EMULATION: false,
+            FOLLOW_KEY_STATE_SUPPORT: false
+        };
+        repository.push(newDev);
+        activeId = newDev.DEVICE_ID;
+        init();
+    }
+
+    function saveCurrent() {
+        const dev = repository.find(d => d.DEVICE_ID === activeId);
+        if (!dev) return;
+
+        // Сохраняем из формы назад в память JS пула
+        const inputs = document.getElementById('formContainer').querySelectorAll('input');
+        inputs.forEach(input => {
+            const key = input.id;
+            if (input.type === 'checkbox') {
+                dev[key] = input.checked;
+            } else {
+                dev[key] = isNaN(input.value) || input.value === '' ? input.value : Number(input.value);
+            }
+        });
+
+        // Защита от смены ID вручную для заголовков
+        dev.DEVICE_ID = document.getElementById('DEVICE_ID').value;
+        dev.DEVICE_NAME = document.getElementById('DEVICE_NAME').value;
+        dev.VENDOR = document.getElementById('VENDOR').value;
+        activeId = dev.DEVICE_ID;
+
+        init();
+        alert("Контроллер сохранен в текущий пул репозитория!");
+    }
+
+    // Формирование точной синтаксической GMT структуры с ТАБами
+    function generateTxtContent() {
+        let txt = "# ====================================================================\n";
+        txt += "# CONTROL SURFACE ENGINE (CSE) - MASTER GEAR MATRIX TEMPLATE (GMT)\n";
+        txt += "# Сгенерировано через WebIF Repository Builder\n";
+        txt += "# ====================================================================\n\n";
+
+        const inputs = document.getElementById('formContainer').querySelectorAll('input');
+        inputs.forEach(input => {
+            const key = input.id;
+            let val = "";
+            if (input.type === 'checkbox') {
+                val = input.checked ? "true" : "false";
+            } else {
+                val = input.value === "" ? "NA" : input.value;
+            }
+            // Формируем строгую строку: КЛЮЧ + ТАБ + ЗНАЧЕНИЕ
+            txt += `${key}\t${val}\n`;
+        });
+        return txt;
+    }
+
+    function updatePreview() {
+        const content = generateTxtContent();
+        // Визуализируем табы для разработчика стрелочками или отступами
+        document.getElementById('rawOutput').innerText = content.replace(/\t/g, "    ->  ");
+    }
+
+    function exportTxt() {
+        const text = generateTxtContent();
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${document.getElementById('DEVICE_ID').value}_matrix.txt`;
+        link.click();
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>

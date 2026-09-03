@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SUNO_MPC controller REPO</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Lucida Grande", sans-serif;
+            background: #cbd2d9 url('./png/Wave.jpg') repeat fixed;
+            background-size: cover; margin: 0; padding: 10px; font-size: 12px; color: #222;
+        }
+        /* Главное правило адаптивного экрана: скрываем правый сайдбар первым */
+        @media (max-width: 1300px) {  /* Удобный screen-field для main редактора */
+            .kb-sidebar {
+                display: none !important;
+            }
+           /* .repo-sidebar {
+                display: none !important;
+            } */
+        }
+        .header-container {
+            background: linear-gradient(to bottom, #f6f6f6 0%, #a4a4a4 100%);
+            border-bottom: 1px solid #a5a5a5; padding: 6px 15px; display: flex; 
+            align-items: center; justify-content: space-between; border-radius: 5px 5px 5px 5px;
+        }
+        .header-title-block { display: flex; align-items: center; gap: 10px;
+        }
+        .header-title-block h1 { font-size: 18px; font-weight: bold; margin: 0; text-shadow: 0 1px 0 #888;
+        }
+        .suno-icon { width: 30px; height: 30px; border-radius: 5px;
+        }
+        .main-layout { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 10px; 
+            height: calc(100vh - 100px); 
+            max-width: 1350px; /* Поля больше не расползутся на всю ширину экрана */
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
+        }
+        .repo-sidebar {
+            width: 250px;
+            min-width: 180px;
+            background: rgba(254, 254, 254, 0.10);
+            border: 1px solid #acacac; 
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+        }
+        .sidebar-title {
+            font-weight: bold;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+        }
+        .device-list {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(80, 254, 254, 0.10);
+            border: 1px solid #bcaaaa;
+            border-radius: 3px;
+        }
+        .device-item { 
+            padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.1); cursor: pointer; display: flex; 
+            align-items: center; position: relative; overflow: hidden; background-repeat: no-repeat;
+            background-position: right 10px center; background-size: auto 80%; transition: all 0.2s ease;
+        }
+        .device-item:hover { background-color: rgba(30, 135, 229, 0.15) !important;
+        }
+        .device-item.active { background: linear-gradient(to bottom, #5cc1ff 0%, #1e87e5 100%) !important; color: #fff !important;
+        }
+        .device-item.active::after { opacity: 0.15 !important; color: #fff !important;
+        }
+        .device-item::after {
+            position: absolute; right: 8px; bottom: -2px; font-size: 24px; font-weight: 900;
+            font-style: italic; font-family: "Impact", sans-serif; opacity: 0.08; pointer-events: none; z-index: 1;
+        }
+        .brand-generic::after { content: "KORG"; color: #666666; }
+        .brand-nektar::after  { content: "NEKTAR"; color: #0055cc; }
+        .brand-roli::after    { content: "ROLI"; color: #7700cc; }
+        .brand-mackie::after  { content: "MACKIE"; color: #008800; }
+        .brand-generic::after { content: "MIDI"; color: #555555; }
+        .brand-ssl::after     { content: "SSL"; color: #b30000; }
+        .brand-generic::after { content: "TASCAM"; color: #666666; }
+        .editor-container { flex: 1; background: rgba(80, 245, 245, 0.10); border: 1px solid #acacac; border-radius: 5px; display: flex; flex-direction: column; backdrop-filter: blur(12px);
+        }
+        /* 1.1 Переводим главный контейнер формы в режим 2-colon Grid-matrix */
+        .editor-scroll-area { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 12px; 
+            display: grid !important;
+            /* Левая и правая колонки сжимаются и расширяются строго синхронно */
+            grid-template-columns: repeat(2, minmax(250px, 1fr)); 
+            gap: 16px 12px; /* Расстояние между группами по вертикали и горизонтали */
+            align-content: start;
+            box-sizing: border-box;
+        }
+        .columns-flex-wrapper { 
+            display: grid; 
+            grid-template-columns: repeat(2, minmax(280px, 1fr)); /* Колонки сжимаются синхронно */
+            gap: 12px; 
+            width: 100%; 
+            box-sizing: border-box; 
+        }
+        .content-column {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .kb-sidebar {
+            width: 250px;
+            min-width: 250px;
+            background: rgba(254, 254, 254, 0.10);
+            border: 1px solid #acacac;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+            /*box-sizing: border-box;*/
+        }
+        .kb-content-area {
+            flex: 1;
+            background: rgba(80, 254, 254, 0.15);
+            border: 1px solid #bcaaaa;
+            border-radius: 3px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #333;
+        }
+        .fieldset-group { 
+            border: 1px solid #b5b5b5; border-radius: 5px; padding: 10px; background: rgba(255, 255, 255, 0.25);
+            margin-top: 0px; position: relative; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.05);
+            box-sizing: border-box; min-width: 0 !important;
+        }
+        .fieldset-group.meta-wide-block {
+            grid-column: 1 / span 2; /* Занимает всю ширину от левого до правого края */
+            width: 100% !important;
+            margin-top: 5px;
+            display: block !important;
+            box-sizing: border-box;
+        }
+        .meta-grid-inside { display: grid; grid-template-columns: 1fr 1fr; gap: 0 15px;
+        }
+        .group-header {
+            font-weight: auto; color: #1a2229; font-size: 11px; text-shadow: 0 1px 0 rgba(254,254,254,0.4);
+            position: absolute; top: -14px; left: 5px; background: transparent !important; padding: 0; margin: 0px;
+        }
+        /* 1.1 Жесткая фиксация колонок: подписи строго 260px (медиана + запас K-char), инпуты забирают остаток */
+        .form-row { 
+            display: grid !important; 
+            grid-template-columns: 180px 1fr !important; 
+            align-items: center; 
+            height: 22px; 
+            margin-bottom: 4px; /* Отступ между пунктами 8, 9, 10 и т.д. */ 
+            gap: 10px; 
+            box-sizing: border-box; 
+            min-width: 0;
+            width: max-width;
+            position: relative;
+        }
+        /* Фиксированная ширина для label, чтобы сделать одинаковый отступ */
+        .form-label {
+          width: 180px;         /* Подберите ширину под самый длинный текст */
+          min-width: 160px;     /* Запрещает тексту сжиматься */
+          margin-right: 0px;   /* Чистый отступ после текста label перед элементами */
+          display: inline-block;
+        }
+                /* 1.2 Стабильное усечение строк без изменения геометрии при наведении */
+        .form-row label {
+            white-space: nowrap;        /* Запрещает тексту переноситься на новую строку */
+            overflow: hidden;           /* Прячет текст, который не поместился в ширину */
+            text-overflow: ellipsis;    /* Добавляет то самое троеточие ... */
+            display: inline-block;
+            font-weight: 180; 
+            color: #222;
+            cursor: default !important;
+            text-align: left;
+            width: 180px; /* Защита: текст никогда не выйдет за границы своей зоны */
+            transition: all 0.15s ease-in-out;
+            position: relative;
+            z-index: 1;
+        }
+
+        .form-row:hover label {
+            overflow: visible !important;
+            white-space: nowrap !important;
+            /* Раскрываемся вправо поверх пустого пространства, не трогая инпут */
+            margin-right: 5px !important; 
+            z-index: 10 !important;
+            /* Мягкая контрастная подложка Mavericks, чтобы текст читался поверх рамки */
+            background: rgba(254, 254, 254, 0.10) !important;
+            box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2) !important;
+            /*border: 1px solid #a3a3a3 !important;*/
+            border-radius: 3px !important;
+            padding: 2px 2px !important;
+            transform: translateY(-1px); /* Легкий 3D подъем при наведении */
+        }
+        /* 1.4 Выравнивание инпутов и чекбоксов: теперь у них есть жесткий левый упор в 260px */
+        .form-row input[type="text"],
+        .form-row input[type="number"],
+        .form-row select { 
+            width: 100%; 
+            max-width: 180px; /* Поля кучно выстроены по левой стороне */
+            justify-self: start; 
+            box-sizing: border-box; 
+            font-size: 11px; 
+            padding: 2px 10px; 
+            border: 1px solid #999; 
+            border-radius: 3px; 
+        }
+        /* 1.5 Чекбоксы больше никогда не улетят влево — они прижаты строго к отметке 260px */
+        .checkbox-row { 
+            font-size: 10px !important;
+            font-style: italic;
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start;
+            margin: 1px;
+            gap: 2px;            /* Расстояние между чекбоксами внутри одной строки */
+            height: 100%;
+            width: 100%;
+            /*min-width: 0;*/
+        }
+        .checkbox-row input[type="checkbox"],
+        .checkbox-row input[type="radio"] {
+            margin: 0px;
+            padding: 2px 4px;
+            cursor: pointer;
+            width: 13px;
+            height: 13px;
+            margin-left: 0px; 
+        }
+        /* Каждая отдельная кнопка со своим текстом становится изолированной зоной наведения */
+        .checkbox-row label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-flex !important;
+            align-items: center;
+            gap: 2px;
+            width: 100% !important;
+            max-width: none !important;
+            cursor: pointer !important;
+            border-radius: 3px;
+            transition: background 0.15s ease; /* Плавное проявление цвета без рывков */
+            box-sizing: border-box;  /* Защищает от изменения размеров */
+        }
+        .checkbox-row label:hover {
+            background: rgba(0, 0, 0, 0.05); /* Легкий отклик при наведении на конкретный суб-пункт */
+        }
+        /* Контейнер для группировки нескольких строк чекбоксов в пункте 8 */
+        .checkbox-group-wrapper {
+            display: inline-grid !important; 
+            flex-direction: column;
+
+        }
+        .required-marker { color: #cc0000; font-weight: bold;
+        }
+        .help-info { 
+            grid-column: 1 / span 2;
+            font-size: 8.5px;
+            color: #555;
+            font-style: italic;
+            padding-left: 0px; 
+            margin-bottom: 4px;
+            line-height: 10px;
+            height: 10px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .aqua-btn { background: linear-gradient(to bottom, #fff 0%, #eaeaea 100%); border: 1px solid #9c9c9c; border-radius: 3px; padding: 2px 6px; font-size: 10.5px; cursor: pointer;
+        }
+        .aqua-btn-blue { background: linear-gradient(to bottom, #7ecfff 0%, #1e87e5 100%); border: 1px solid #1461a5; color: #fff; font-weight: bold; border-radius: 3px; padding: 2px 6px; font-size: 10.5px; cursor: pointer;
+        }
+        .btn-group { display: flex; gap: 4px; margin-top: 5px;
+        }
+        .terminal-container { background: rgba(15, 15, 15, 0.30); border: 1px solid #444; border-radius: 4px; padding: 6px 10px; font-family: monospace; color: #28a745; margin-top: 10px;
+        }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 5px; font-size: 10px; color: #aaa;
+        }
+        .terminal-log-area { height: 140px; overflow-y: auto; font-size: 10.5px; line-height: 14px; white-space: pre-wrap;
+        }
+        .footer-container { background: linear-gradient(to bottom, #f6f6f6 0%, #a4a4a4 100%); border-top: 1px solid #9c9c9c; padding: 4px 15px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; border-radius: 5px 5px 5px 5px;
+        }
+        .footer-links a { color: #0066cc; text-decoration: none; margin-left: 10px;
+        }
+                /* 1.1 Маркировка всей строки: плавная янтарная подложка и тень во всю ширину */
+        .form-row.is-dirty {
+            background: linear-gradient(to right, rgba(255, 152, 0, 0.15) 0%, rgba(255, 152, 0, 0.02) 100%);
+            border-left: 3px solid #ff9800; /* Яркий оранжевый торец слева */
+            box-shadow: 0 1px 3px rgba(255, 152, 0, 0.1);
+            border-radius: 3px;
+        }
+        /* 1.2 Перекрашивание текста параметра для 4K контраста */
+        .form-row.is-dirty label {
+            color: #d67d00 !important; /* Насыщенный янтарный цвет */
+            font-weight: bold !important;
+            padding-left: 4px; /* Небольшой сдвиг, создающий динамику */
+            transition: all 0.15s ease;
+        }
+        /* 1.3 Свечение вокруг самого поля ввода */
+        .form-row.is-dirty input, .form-row.is-dirty select {
+            border-color: #ff9800 !important;
+            box-shadow: 0 0 6px rgba(255, 152, 0, 0.6) !important; /* Увеличили радиус свечения для 4K */
+            background-color: #fffdf9 !important; /* Мягкий оттенок бумаги внутри поля */
+        }
+        /* 1.1 Новая сочная панель истории в стиле OS X Mavericks */
+        .undo-redo-panel {
+            display: flex;
+            gap: 2px;
+            background: linear-gradient(to bottom, #e1e1e1 0%, #bcbcbc 100%);
+            padding: 2px;
+            border-radius: 4px;
+            border: 1px solid #8e8e8e;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.1);
+        }
+        #btn-undo:not(:disabled) {
+            background: linear-gradient(to bottom, #ffb03a 0%, #ef7c00 100%) !important;
+            border: 1px solid #b35d00 !important;
+            color: #fff !important;
+            font-weight: bold;
+            text-shadow: 0 -1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+        #btn-undo:not(:disabled):active {
+            background: linear-gradient(to bottom, #d87000 0%, #b35d00 100%) !important;
+        }
+        #btn-redo:not(:disabled) {
+            background: linear-gradient(to bottom, #5cc1ff 0%, #1e87e5 100%) !important;
+            border: 1px solid #1461a5 !important;
+            color: #fff !important;
+            font-weight: bold;
+            text-shadow: 0 -1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+        #btn-redo:not(:disabled):active {
+            background: linear-gradient(to bottom, #1976d2 0%, #0d47a1 100%) !important;
+        }
+        .undo-redo-panel button:disabled {
+            background: #dcdcdc !important;
+            border: 1px solid #aaaaaa !important;
+            color: #888888 !important;
+            opacity: 0.6;
+            cursor: not-allowed;
+            text-shadow: none !important;
+            box-shadow: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="header-title-block">
+            <img src="/png/SunoColor.png" alt="SUNO" class="suno-icon" onerror="this.src='data:image/png'">
+            <h1>SUNO_MPC controller REPOSITORY EDITOR</h1>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="undo-redo-panel">
+                <button class="aqua-btn" id="btn-undo" onclick="undoAction()" disabled>⤺ Undo</button>
+                <button class="aqua-btn" id="btn-redo" onclick="redoAction()" disabled>Redo ⤻</button>
+            </div>
+            <div id="repo-stats" style="font-weight: 500;">Файлов в пуле: 0</div>
+        </div>
+    </div>
+
+    <!-- НАЧАЛО ГЛОБАЛЬНОГО МАКЕТА -->
+    <div class="main-layout">
+        
+        <!-- Левый сайдбар: Пул репозитория файлов .txt -->
+        <div class="repo-sidebar">
+            <div class="sidebar-title">Repository pool</div>
+            <div class="device-list" id="device-list-container"></div>
+            <div class="btn-group">
+                <button class="aqua-btn" style="flex:1;" onclick="cloneDevice()">CLONE</button>
+                <button class="aqua-btn-blue" style="flex:1;" onclick="exportToTXT()">Скачать .TXT</button>
+            </div>
+        </div>
+
+        <!-- Центральный контейнер редактора матриц -->
+        <div class="editor-container">
+            <!-- Grid-сетка автоматически раскидает фреймсеты влево и вправо -->
+            <div class="editor-scroll-area" id="editor-form-fields">
+                
+                <!-- 1. META DATA & DOCUMENTATION (НА ВСЮ ШИРИНУ) -->
+                <div class="fieldset-group meta-wide-block">
+                    <div class="group-header">1. META DATA & DOCUMENTATION</div>
+                    <div class="meta-grid-inside">
+                        <div>
+                            <div class="form-row">
+                                <label>1. VENDOR *</label>
+                                <input type="text" id="field_1.1.0" placeholder="e.g., Solid State Logic, Tascam, Nektar" oninput="updateField('1.1.0', this.value)">
+                            </div>
+                            <div class="form-row">
+                                <label>2. DEVICE_ID *</label>
+                                <input type="text" id="field_1.2.0" placeholder="e.g., ssl-nucleus-2, tascam-model-12" oninput="updateField('1.2.0', this.value)">
+                            </div>
+                            <div class="form-row">
+                                <label>3. DEVICE_NAME *</label>
+                                <input type="text" id="field_1.3.0" placeholder="Commercial hardware engineering name" oninput="updateField('1.3.0', this.value)">
+                            </div>
+                        </div>
+                        <div style="margin-left: 10px">
+                            <div class="form-row">
+                                <label>4. REF_MANUAL_URL</label>
+                                <input type="text" id="field_1.4.0" placeholder="Link to official hardware reference manual PDF" oninput="updateField('1.4.0', this.value)">
+                            </div>
+                            <div class="form-row">
+                                <label>5. REF_DATASHEET_URL</label>
+                                <input type="text" id="field_1.5.0" placeholder="Link to MIDI implementation blueprint spec matrix" oninput="updateField('1.5.0', this.value)">
+                            </div>
+                            <div class="form-row">
+                                <label>6. PROJECT_DOC_URL</label>
+                                <input type="text" id="field_1.6.0" placeholder="Link to active developer repository manuals" oninput="updateField('1.6.0', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. CONNECTIVITY & INTERFACES -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">2. CONNECTIVITY & INTERFACES</div>
+                    <div class="form-row">
+                        <label>1. Count.PROTOCOL_ACTIVE *</label>
+                        <input type="number" id="field_2.1.0" placeholder="Active engine protocols count" oninput="updateField('2.1.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>2. Count.DAW_STUDIO_LAYERS</label>
+                        <input type="number" id="field_2.2.0" placeholder="Independent console layer hardware memory slots" oninput="updateField('2.2.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>3. Count.USER_IF_PER_LAYER</label>
+                        <input type="number" id="field_2.3.0" placeholder="Virtual sub-interfaces bound per single active layer" oninput="updateField('2.3.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>4. ChPnt.PORT_CONNECTION</label>
+                        <input type="text" id="field_2.4.0" placeholder="e.g., USB_HID, ipMIDI_Ethernet, LINK_Ext" oninput="updateField('2.4.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>5. ChPnt.TRANSORT_PROTOCOL</label>
+                        <input type="text" id="field_2.5.0" placeholder="e.g., ipMIDI, RTP_MIDI, OSC, Generic_MIDI" oninput="updateField('2.5.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>6. ChPnt.APP_PROTOCOL</label>
+                        <input type="text" id="field_2.6.0" placeholder="e.g., MCU, HUI, CC#, MPE, OSC_Custom" oninput="updateField('2.6.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>7. Suprt.HID_EMULATION</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_2.7.0" onchange="updateField('2.7.0', this.checked)"> <span>QWERTY Emulation</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>8. Macro.KVMHot_ASCII_COMB</label>
+                        <input type="text" id="field_2.8.0" placeholder="Synchronization macro keystroke (e.g., Shift+S)" oninput="updateField('2.8.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>9. ChPnt.ASCII_HOT_KEY_CFG</label>
+                        <input type="text" id="field_2.9.0" placeholder="FOLLOW_KEY_STATE, MODIFIER_ONLY_OUT, SEL_KEY_AUTO_FOCUS" oninput="updateField('2.9.0', this.value)">
+                    </div>
+                </fieldset>
+
+                <!-- 3. SUPPORT SysEX, MPE, OSC & EXPRESSION -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">3. SUPPORT SysEX, MPE, OSC & EXPRESSION</div>
+                    <div class="form-row">
+                        <label>1. Suprt.AFTOUCH_POLY</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.1.0" onchange="updateField('3.1.0', this.checked)"> <span>has poly pressure opt.</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>2. Suprt.AFTOUCH_MONO</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.2.0" onchange="updateField('3.2.0', this.checked)"> <span>Global.ch.AFT</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>3. Suprt.WHEEL_PITCH</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.3.0" onchange="updateField('3.3.0', this.checked)"> <span>PitchBand wheel</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>4. Suprt.WHEEL_MODLTN</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.4.0" onchange="updateField('3.4.0', this.checked)"> <span>MOD Wheel (CC#1)</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>5. Suprt.XY_PAD_RIBBN</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.5.0" onchange="updateField('3.5.0', this.checked)"> <span>XY-PAD / Ribbon sensor</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>6. Bits.CTRL_RESOLUTION</label>
+                        <input type="number" id="field_3.6.0" placeholder="Fader depth (7 or 14 bit)" oninput="updateField('3.6.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>7. Suprt.BREATH_CTRL</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.7.0" onchange="updateField('3.7.0', this.checked)"> <span>breath Ctrl (CC#2)</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>8. Suprt.NRPN</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.8.0" onchange="updateField('3.8.0', this.checked)"> <span>NRPN 14-bit</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>9. Suprt.SysEx</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_3.9.0" onchange="updateField('3.9.0', this.checked)"> <span>SysEx RX/TX ability</span></div>
+                    </div>
+                </fieldset>
+
+                <!-- 4. MECHANICAL & LED FEEDBACK -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">4. MECHANICAL & LED FEEDBACK</div>
+                    <div class="form-row">
+                        <label>1. Fb.FADER_MOTORIZED</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.1.0" onchange="updateField('4.1.0', this.checked)"> <span>Motorized faders</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>2. Fb.FADER_TOUCH_SENS</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.2.0" onchange="updateField('4.2.0', this.checked)"> <span>Automation write act.</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>3. Fb.ENC_MOTORIZED</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.3.0" onchange="updateField('4.3.0', this.checked)"> <span>Active physical motor</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>4. Fb.ENC_LED_RINGS</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.4.0" onchange="updateField('4.4.0', this.checked)"> <span>LED arc tracking</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>5. Fb.ENC_LED_STATE</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.5.0" onchange="updateField('4.5.0', this.checked)"> <span>LED rings response</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>6.0 Fb.BUTTON_STATES</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.6.0" onchange="updateField('4.6.0', this.checked)"> <span>Int.LED follow backend</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>7. Fb.LED_PEAK_METERS</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_4.7.0" onchange="updateField('4.7.0', this.checked)"> <span>Volume peak indicators</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>8. Count.LED_PEAK_SEG</label>
+                        <input type="number" id="field_4.8.0" placeholder="Light cells built into strip meter (e.g., 10)" oninput="updateField('4.8.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>9. Count.BTN_LED</label>
+                        <input type="number" id="field_4.9.0" placeholder="Total keys equipped with lighting diods" oninput="updateField('4.9.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>10. ChPnt.BTN_LED_COLOR</label>
+                        <input type="text" id="field_4.10.0" placeholder="monochrome, dual_color, RGB" oninput="updateField('4.10.0', this.value)">
+                    </div>
+                </fieldset>
+
+                <!-- 5. FEEDBACK: DISPLAY STRIP SPECS -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">5. FEEDBACK: DISPLAY STRIP SPECS</div>
+                    <div class="form-row">
+                        <label>1. Fb.SCRIBBLE_STRIPS</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_5.1.0" onchange="updateField('5.1.0', this.checked)"> <span>Has scribble text strips</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>2. Fb.LCD_RESPONSABLE</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_5.2.0" onchange="updateField('5.2.0', this.checked)"> <span>Dynamic refresh support</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>3. Fb.LCD_METER_BRIDGE</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_5.3.0" onchange="updateField('5.3.0', this.checked)"> <span>Virtual levels in display</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>4. Fb.LED_7SEG</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_5.4.0" onchange="updateField('5.4.0', this.checked)"> <span>Has time code display</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>5. Param.LED_7SEG</label>
+                        <input type="text" id="field_5.5.0" placeholder="e.g., time_code, bars_beats" oninput="updateField('5.5.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>6. Count.LED_7SEG_CHARS</label>
+                        <input type="number" id="field_5.6.0" placeholder="e.g., 10" oninput="updateField('5.6.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>7. Count.MCU_CHARS_CHAN</label>
+                        <input type="number" id="field_5.7.0" placeholder="MCU character limit (7 max)" oninput="updateField('5.7.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>8. Count.HUI_CHARS_CHAN</label>
+                        <input type="number" id="field_5.8.0" placeholder="HUI character limit (4 max)" oninput="updateField('5.8.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>9. Char.LCD_CHAN_SPACER</label>
+                        <input type="text" id="field_5.9.0" placeholder="e.g., space, |, tab, comma" oninput="updateField('5.9.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>10. Count.LCD_MSG_CHARS</label>
+                        <input type="text" id="field_5.10.0" placeholder="Layout dimensions formula (e.g., 2x56)" oninput="updateField('5.10.0', this.value)">
+                    </div>
+                </fieldset>
+
+                <!-- 6. HARDWARE CONTROL ARCHITECTURE -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">6.0 HARDWARE CONTROL ARCHITECTURE</div>
+                    <div class="form-row">
+                        <label>6.1. Suprt.FADER_TOUCH_SENS</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.1.0" onchange="updateField('6.1.0', this.checked)"> <span>Touch capacitive contact</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>2. Suprt.FADER_MOTORIZED</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.2.0" onchange="updateField('6.2.0', this.checked)"> <span>Mechanical fader automation feedback</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>3. Suprt.FADER_MASTER</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.3.0" onchange="updateField('6.3.0', this.checked)"> <span>Has standalone 9th Master fader</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>4. Suprt.FLIP_STATE</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.4.0" onchange="updateField('6.4.0', this.checked)"> <span>Encoder-Fader param. hot swap</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>5. Suprt.JOG_WHEEL</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.5.0" onchange="updateField('6.5.0', this.checked)"> <span>Infinity JOG-wheel dial presence</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>6. Suprt.JOG_SRUB_MOD</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_6.6.0" onchange="updateField('6.6.0', this.checked)"> <span>Precision frame audio scrub switch</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>7. Count.CHANNEL *</label>
+                        <input type="number" id="field_6.7.0" placeholder="Total channels strips banks count" oninput="updateField('6.7.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>8. Count.FADERS</label>
+                        <input type="number" id="field_6.8.0" placeholder="Physical volume slide tracks total count" oninput="updateField('6.8.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>9. Count.BUTTON</label>
+                        <input type="number" id="field_6.9.0" placeholder="Total buttons present on core surface" oninput="updateField('6.9.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>10. Count.ENC_VPOT</label>
+                        <input type="number" id="field_6.10.0" placeholder="Continuous digital encoders quantity" oninput="updateField('6.10.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>11. Count.ENC_SW</label>
+                        <input type="number" id="field_6.11.0" placeholder="Encoders featuring a push click switch" oninput="updateField('6.11.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>12. Count.MAIN_SOFT_BTN</label>
+                        <input type="number" id="field_6.12.0" placeholder="Software assignable center key buttons" oninput="updateField('6.12.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>13. Count.MODE_SOFT_BTN</label>
+                        <input type="number" id="field_6.13.0" placeholder="Sub-mode categories toggles grid count" oninput="updateField('6.13.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>14. Count.EXT_SOFT_SW</label>
+                        <input type="number" id="field_6.14.0" placeholder="Side plates software utility triggers" oninput="updateField('6.14.0', parseInt(this.value)||0)">
+                    </div>
+                    <div class="form-row">
+                        <label>15. Count.EXT_FOOT_SW</label>
+                        <input type="number" id="field_6.15.0" placeholder="Rear jack sustain inputs total count" oninput="updateField('6.15.0', parseInt(this.value)||0)">
+                    </div>
+                </fieldset>
+
+                <!-- 7. DAW NAVIGATION, TRANSPORT -->
+                <fieldset class="fieldset-group">
+                    <div class="group-header">7. DAW NAVIGATION, TRANSPORT</div>
+                    <div class="form-row">
+                        <label>1. Suprt.BANK_STEP_SHIFT</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_7.1.0" onchange="updateField('7.1.0', this.checked)"> <span>Bank boundary scrolls (8 tracks)</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>2. Suprt.CHAN_STEP_SHIFT</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_7.2.0" onchange="updateField('7.2.0', this.checked)"> <span>Single channel focus increment shift</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>3. Suprt.NAV_MOD_SW</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_7.3.0" onchange="updateField('7.3.0', this.checked)"> <span>Navigation modification switches</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>4. Suprt.NAV_RAW_LR</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_7.4.0" onchange="updateField('7.4.0', this.checked)"> <span>Horizontal arrow navigation keys</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>5. Suprt.NAV_RAW_UD</label>
+                        <div class="checkbox-row"><input type="checkbox" id="field_7.5.0" onchange="updateField('7.14.0', this.checked)"> <span>Vertical arrow navigation keys</span></div>
+                    </div>
+                    <div class="form-row">
+                        <label>6. Suprt.AUTOMATION</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_7.6.0" onchange="updateField('7.15.0', this.checked)"> <span>Master system envelope read/write</span></div>
+                    </div>
+                    <!-- Пункт 7. ChPnt.AUTOMATION -->
+                    <div class="form-row">
+                      <label class="form-label">7. ChPnt.AUTOMATION</label>
+                      <div class="checkbox-group-wrapper">
+                        <div class="checkbox-row"> 
+                          <label style="width: auto; display: inline-block;"><input type="checkbox" id="field_7.7.1" onchange="updateField('7.7.1', this.checked)"> READ</label> 
+                          <label style="width: auto; display: inline-block;"><input type="checkbox" id="field_7.7.2" onchange="updateField('7.7.2', this.checked)"> WRITE</label> 
+                          <label style="width: auto; display: inline-block; color:#cc0000;"><input type="checkbox" id="field_7.7.3" onchange="updateField('7.7.3', this.checked)"> REC</label> 
+                        </div> 
+                        <div class="checkbox-row"> 
+                          <label style="width: auto; display: inline-block;"><input type="checkbox" id="field_7.7.4" onchange="updateField('7.7.4', this.checked)"> TOUCH</label> 
+                          <label style="width: auto; display: inline-block;"><input type="checkbox" id="field_7.7.5" onchange="updateField('7.7.5', this.checked)"> LATCH</label> 
+                          <label style="width: auto; display: inline-block;"><input type="checkbox" id="field_7.7.6" onchange="updateField('7.7.6', this.checked)"> TRIM</label> 
+                        </div>
+                      </div>
+                    </div>
+                    <label class="form-row" style="height: 5px"></label>
+                    <!-- Строка 8. ChPnt.MMC -->
+                    <div class="form-row"> 
+                      <label class="form-label">8. ChPnt.MMC</label> 
+                      <div class="checkbox-group-wrapper">
+                        <div class="checkbox-row"> 
+                          <label style="width:auto;"><input type="checkbox" id="field_7.8.1" onchange="updateField('7.8.1', this.checked)"> STOP</label> 
+                          <label style="width:auto;"><input type="checkbox" id="field_7.8.2" onchange="updateField('7.8.2', this.checked)"> PLAY</label> 
+                          <label style="width:auto; color:#cc0000;"><input type="checkbox" id="field_7.8.3" onchange="updateField('7.17.3', this.checked)"> REC</label> 
+                        </div> 
+                        <div class="checkbox-row"> 
+                          <label style="width:auto;"><input type="checkbox" id="field_7.8.4" onchange="updateField('7.17.4', this.checked)"> PREV</label> 
+                          <label style="width:auto;"><input type="checkbox" id="field_7.8.5" onchange="updateField('7.17.5', this.checked)"> NEXT</label> 
+                          <label style="width:auto;"><input type="checkbox" id="field_7.8.6" onchange="updateField('7.17.6', this.checked)"> CYCLE</label> 
+                        </div>
+                      </div>
+                    </div> <!-- ТЕГ ЗАКРЫТ ЗДЕСЬ (Пункт 8 закончился) -->
+                    <label class="form-row" style="height: 5px"></label>
+                    <!-- Строка 9. ChPnt.MMC_ALT автоматически опустится вниз -->
+                    <div class="form-row"> 
+                      <label class="form-label">9. ChPnt.MMC_ALT</label> 
+                      <div class="checkbox-row">
+                        <label style="width:auto; color:#0000ff;"><input type="checkbox" name="mmc_alt_group" id="field_7.9.1" onchange="updateField('7.9.1', this.checked)"> RTZ *</label> 
+                        <label style="width:auto; color:#0000ff;"><input type="checkbox" name="mmc_alt_group" id="field_7.9.2" onchange="updateField('7.9.2', this.checked)"> END *</label> 
+                        <label style="width:auto; color:#0000ff;"><input type="checkbox" name="mmc_alt_group" id="field_7.9.3" onchange="updateField('7.9.3', this.checked)"> LOOP *</label> 
+                      </div> 
+                    </div>
+
+                    <div class="form-row">
+                        <label>10. ChPnt.MCU_SUB_MODES</label>
+                        <input type="text" id="field_7.10.0" placeholder="DFLT, INSTR, TRACK, PAN, EQ, SEND, PLUGIN" oninput="updateField('7.10.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>11. ChPnt.HUI_SUB_MODES</label>
+                        <input type="text" id="field_7.11.0" placeholder="DFLT, MUTE, A.SND, B.SND, C.SND, D.SND, E.SND, PAN" oninput="updateField('7.11.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>12. Map.dflt_CH_FADER</label>
+                        <input type="text" id="field_7.12.0" placeholder="Default fader macro destination (e.g., volume)" oninput="updateField('7.12.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>13. Map.dflt_CH_ENC</label>
+                        <input type="text" id="field_7.13.0" placeholder="Default encoder macro destination (e.g., pan)" oninput="updateField('7.13.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>14. Map.dflt_CH_ENC_SW</label>
+                        <input type="text" id="field_7.14.0" placeholder="Default encoder push assignment (e.g., RST)" oninput="updateField('7.14.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>15. Map.dflt_CH_BTN_0</label>
+                        <input type="text" id="field_7.15.0" placeholder="Primary button macro assignment (e.g., select)" oninput="updateField('7.15.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>16. Map.dflt_CH_BTN_1</label>
+                        <input type="text" id="field_7.16.0" placeholder="Secondary button macro assignment (e.g., mute)" oninput="updateField('7.16.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>17. Map.dflt_CH_BTN_2</label>
+                        <input type="text" id="field_7.17.0" placeholder="Tertiary button macro assignment (e.g., solo)" oninput="updateField('7.17.0', this.value)">
+                    </div>
+                    <div class="form-row">
+                        <label>18. Map.dflt_CH_BTN_3</label>
+                        <input type="text" id="field_7.18.0" placeholder="Fourth button macro assignment (e.g., NA)" oninput="updateField('7.18.0', this.value)">
+                    </div>
+                </fieldset>
+
+            </div> <!-- 1. ЗАКРЫВАЕМ СКРОЛЛ-ОБЛАСТЬ (editor-scroll-area) -->
+            
+            <!-- Реальное подвальное окно консоли сервера -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <span>⚡ SUNO_MPC Engine Server Console Stream (Live CLI)</span>
+                    <span style="color:#666;">vladistone@studio:~</span>
+                </div>
+                <div class="terminal-log-area" id="cli-logger-stream">Connecting to Live Server Log Stream...</div>
+            </div>
+            
+        </div> <!-- 2. CLOSE editor-container -->
+
+        <!-- R SIDE BAR: KNOWLEDGE BASE -->
+        <div class="kb-sidebar">
+            <div class="sidebar-title">📚 Contextual Documentation</div>
+            <div class="kb-content-area" id="kb-viewer-node">Наведите или выберите любой числовой / текстовый параметр для мгновенного отображения спецификации из оригинального GearMapTemplate.txt...</div>
+        </div>
+
+    </div> <!-- ЗАКРЫВАЕМ ГЛОБАЛЬНЫЙ МАКЕТ -->
+
+    <!-- ФУТЕР НАХОДИТСЯ СТРОГО ВНЕ СЕТКИ МАКЕТА -->
+    <div class="footer-container">
+        <div>&copy; 2026 SUNO_MPC Engine. All Rights Reserved.</div>
+        <div class="footer-links">
+            <a href="https://github.com/Vladistone/SUNO_MPC" target="_blank">Project (modular)</a>
+        </div>
+        <div class="footer-links">
+            <a href="https://github.com/Vladistone/SUNO_MPC/issues" target="_blank">Issues</a>
+        </div>
+        <div><img src="/png/VL_Guitar.jpg" alt="Vladistone" style="height:20px; border-radius:3px;" onerror="this.style.display='none'"></div>
+    </div>
+
+    <!-- ПОДКЛЮЧЕНИЕ ИЗОЛИРОВАННОГО МОДУЛЯ ЛОГИКИ -->
+    <script src="/gmt_editor_core.js"></script>
+</body>
+</html>
