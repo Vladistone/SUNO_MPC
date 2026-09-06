@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SUNO_MPC controller REPO</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Lucida Grande", sans-serif;
+            background: #cbd2d9 url('./png/Wave.jpg') repeat fixed;
+            background-size: cover; margin: 0; padding: 10px; font-size: 14px; color: #222;
+        }
+        .header-container {
+            background: linear-gradient(to bottom, #f6f6f6 0%, #d1d1d1 100%);
+            border-bottom: 1px solid #a5a5a5; padding: 6px 15px; display: flex; 
+            align-items: center; justify-content: space-between; border-radius: 5px 5px 5px 5px;
+        }
+        .header-title-block { display: flex; align-items: center; gap: 10px;
+        }
+        .header-title-block h1 { font-size: 18px; font-weight: bold; margin: 0; text-shadow: 0 1px 0 #888;
+        }
+        .suno-icon { width: 30px; height: 30px; border-radius: 5px;
+        }
+        .main-layout { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 10px; 
+            height: calc(100vh - 100px); 
+            max-width: 1400px; /* Поля больше не расползутся на всю ширину экрана */
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
+        }
+        .repo-sidebar {
+            width: 250px;
+            background: rgba(254, 254, 254, 0.10);
+            border: 1px solid #acacac; 
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+        }
+        .sidebar-title {
+            font-weight: bold;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+        }
+        .device-list {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(80, 254, 254, 0.10);
+            border: 1px solid #bcaaaa;
+            border-radius: 3px;
+        }
+        .device-item { 
+            padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.1); cursor: pointer; display: flex; 
+            align-items: center; position: relative; overflow: hidden; background-repeat: no-repeat;
+            background-position: right 10px center; background-size: auto 80%; transition: all 0.2s ease;
+        }
+        .device-item:hover { background-color: rgba(30, 135, 229, 0.15) !important;
+        }
+        .device-item.active { background: linear-gradient(to bottom, #5cc1ff 0%, #1e87e5 100%) !important; color: #fff !important;
+        }
+        .device-item.active::after { opacity: 0.15 !important; color: #fff !important;
+        }
+        .device-item::after {
+            position: absolute; right: 8px; bottom: -2px; font-size: 24px; font-weight: 900;
+            font-style: italic; font-family: "Impact", sans-serif; opacity: 0.08; pointer-events: none; z-index: 1;
+        }
+        .brand-ssl::after     { content: "SSL"; color: #b30000; }
+        .brand-nektar::after  { content: "NEKTAR"; color: #0055cc; }
+        .brand-roli::after    { content: "ROLI"; color: #7700cc; }
+        .brand-mackie::after  { content: "MACKIE"; color: #008800; }
+        .brand-generic::after { content: "MIDI"; color: #555555; }
+        .brand-generic::after { content: "TASCAM"; color: #666666; }
+        .editor-container { flex: 1; background: rgba(80, 245, 245, 0.10); border: 1px solid #acacac; border-radius: 5px; display: flex; flex-direction: column; backdrop-filter: blur(12px);
+        }
+        .editor-scroll-area { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .columns-flex-wrapper { 
+            display: grid; 
+            grid-template-columns: repeat(2, minmax(280px, 1fr)); /* Колонки сжимаются синхронно */
+            gap: 12px; 
+            width: 100%; 
+            box-sizing: border-box; 
+        }
+        .content-column {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .kb-sidebar {
+            width: 250px;
+            min-width: 250px;
+            background: rgba(254, 254, 254, 0.10);
+            border: 1px solid #acacac;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+            box-sizing: border-box;
+        }
+        .kb-content-area {
+            flex: 1;
+            background: rgba(80, 254, 254, 0.15);
+            border: 1px solid #bcaaaa;
+            border-radius: 3px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #333;
+        }
+        .fieldset-group { 
+            border: 1px solid #b5b5b5; border-radius: 5px; padding: 10px; background: rgba(255, 255, 255, 0.25);
+            margin-top: 0px; position: relative; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.05);
+            box-sizing: border-box; min-width: 0 !important;
+        }
+        .fieldset-group.meta-wide-block { width: 100% !important; margin-top: 5px; display: block !important;
+        }
+        .meta-grid-inside { display: grid; grid-template-columns: 1fr 1fr; gap: 0 15px;
+        }
+        .group-header {
+            font-weight: 800; color: #1a2229; font-size: 11px; text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+            position: absolute; top: -14px; left: 5px; background: transparent !important; padding: 0; margin: 0px;
+        }
+        .form-row { 
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            align-items: center;
+            height: 22px; 
+            margin-bottom: 1px;
+            text-shadow: 0 1px 0 rgba(210,210,210,0.3);
+            gap: 6px;
+            box-sizing: border-box;
+            min-width: 0; /* Разрешает строке сжиматься */
+        }
+        input[type="text"], input[type="number"], select { 
+            width: 100%; 
+            min-width: 0; /* Критический фикс: запрещает инпутам распирать колонку */
+            box-sizing: border-box; 
+            font-size: 10px; 
+            padding: 1px 3px; 
+            border: 1px solid #999; 
+            border-radius: 3px; 
+        }
+        .form-row label { font-weight: 250; color: #222; display: block; width: 200px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: cursor: default !important;
+        }
+        .required-marker { color: #cc0000; font-weight: bold;
+        }
+        .help-info { 
+            grid-column: 1 / span 2;
+            font-size: 8.5px;
+            color: #555;
+            font-style: italic;
+            padding-left: 0px; 
+            margin-bottom: 4px;
+            line-height: 10px;
+            height: 10px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .checkbox-row { display: flex; align-items: center; height: 100%; gap: 4px; font-size: 10px;
+        }
+        .checkbox-row input[type="checkbox"] { margin: 0; padding: 0; cursor: pointer;
+        }
+        .aqua-btn { background: linear-gradient(to bottom, #fff 0%, #eaeaea 100%); border: 1px solid #9c9c9c; border-radius: 3px; padding: 2px 6px; font-size: 10.5px; cursor: pointer;
+        }
+        .aqua-btn-blue { background: linear-gradient(to bottom, #7ecfff 0%, #1e87e5 100%); border: 1px solid #1461a5; color: #fff; font-weight: bold; border-radius: 3px; padding: 2px 6px; font-size: 10.5px; cursor: pointer;
+        }
+        .btn-group { display: flex; gap: 4px; margin-top: 5px;
+        }
+        .terminal-container { background: rgba(15, 15, 15, 0.30); border: 1px solid #444; border-radius: 4px; padding: 6px 10px; font-family: monospace; color: #28a745; margin-top: 10px;
+        }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 5px; font-size: 10px; color: #aaa;
+        }
+        .terminal-log-area { height: 140px; overflow-y: auto; font-size: 10.5px; line-height: 14px; white-space: pre-wrap;
+        }
+        .footer-container { background: linear-gradient(to bottom, #e8e8e8 0%, #c8c8c8 100%); border-top: 1px solid #9c9c9c; padding: 4px 15px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; border-radius: 5px 5px 5px 5px;
+        }
+        .footer-links a { color: #0066cc; text-decoration: none; margin-left: 10px;
+        }
+                /* 1.1 Маркировка всей строки: плавная янтарная подложка и тень во всю ширину */
+        .form-row.is-dirty {
+            background: linear-gradient(to right, rgba(255, 152, 0, 0.15) 0%, rgba(255, 152, 0, 0.02) 100%);
+            border-left: 3px solid #ff9800; /* Яркий оранжевый торец слева */
+            box-shadow: 0 1px 3px rgba(255, 152, 0, 0.1);
+            border-radius: 3px;
+        }
+        /* 1.2 Перекрашивание текста параметра для 4K контраста */
+        .form-row.is-dirty label {
+            color: #d67d00 !important; /* Насыщенный янтарный цвет */
+            font-weight: bold !important;
+            padding-left: 4px; /* Небольшой сдвиг, создающий динамику */
+            transition: all 0.15s ease;
+        }
+        /* 1.3 Свечение вокруг самого поля ввода */
+        .form-row.is-dirty input, .form-row.is-dirty select {
+            border-color: #ff9800 !important;
+            box-shadow: 0 0 6px rgba(255, 152, 0, 0.6) !important; /* Увеличили радиус свечения для 4K */
+            background-color: #fffdf9 !important; /* Мягкий оттенок бумаги внутри поля */
+        }
+        /* 1.1 Новая сочная панель истории в стиле OS X Mavericks */
+        .undo-redo-panel {
+            display: flex;
+            gap: 2px;
+            background: linear-gradient(to bottom, #e1e1e1 0%, #bcbcbc 100%);
+            padding: 2px;
+            border-radius: 4px;
+            border: 1px solid #8e8e8e;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(0,0,0,0.1);
+        }
+        #btn-undo:not(:disabled) {
+            background: linear-gradient(to bottom, #ffb03a 0%, #ef7c00 100%) !important;
+            border: 1px solid #b35d00 !important;
+            color: #fff !important;
+            font-weight: bold;
+            text-shadow: 0 -1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+        #btn-undo:not(:disabled):active {
+            background: linear-gradient(to bottom, #d87000 0%, #b35d00 100%) !important;
+        }
+        #btn-redo:not(:disabled) {
+            background: linear-gradient(to bottom, #5cc1ff 0%, #1e87e5 100%) !important;
+            border: 1px solid #1461a5 !important;
+            color: #fff !important;
+            font-weight: bold;
+            text-shadow: 0 -1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+        #btn-redo:not(:disabled):active {
+            background: linear-gradient(to bottom, #1976d2 0%, #0d47a1 100%) !important;
+        }
+        .undo-redo-panel button:disabled {
+            background: #dcdcdc !important;
+            border: 1px solid #aaaaaa !important;
+            color: #888888 !important;
+            opacity: 0.6;
+            cursor: not-allowed;
+            text-shadow: none !important;
+            box-shadow: none !important;
+        }
+                /* 1.4 Главное правило адаптивного экрана: скрываем правый сайдбар первым при сужении окна */
+        @media (max-width: 1200px) {
+            .kb-sidebar {
+                display: none !important; /* Удобный screen-field для main редактора */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="header-title-block">
+            <img src="/png/SunoColor.png" alt="SUNO" class="suno-icon">
+            <h1>SUNO_MPC controller REPOSITORY EDITOR</h1>
+        </div>
+        
+        <!-- Интерактивная панель истории Undo/Redo -->
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="undo-redo-panel">
+                <button class="aqua-btn" id="btn-undo" onclick="undoAction()" disabled>⤺ Undo</button>
+                <button class="aqua-btn" id="btn-redo" onclick="redoAction()" disabled>Redo ⤻</button>
+            </div>
+            <div id="repo-stats" style="font-weight: 500;">Блоков в пуле: 3</div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="repo-sidebar">
+            <div class="sidebar-title">Repository pool</div>
+            <div class="device-list" id="device-list-container"></div>
+            <div class="btn-group">
+                <button class="aqua-btn" style="flex:1;" onclick="cloneDevice()">CLONE</button>
+                <button class="aqua-btn-blue" style="flex:1;" onclick="exportToTXT()">Скачать .TXT</button>
+            </div>
+        </div> <!-- КОНЕЦ MAIN LAYOUT -->
+
+
+        <div class="editor-container">
+            <div class="editor-scroll-area" id="editor-form-fields">
+                <!-- Место для Колонки 1 -->
+                <div id="col-left-fields"></div>
+                <!-- Место для Колонки 2 -->
+                <div id="col-right-fields"></div>
+            </div>
+            <!-- Место окно терминала после колонок параметров -->
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <img src="/png/Suno.png" alt="SUNO" class="suno-icon">
+                    <span>SUNO_MPC Engine Node.js Server Terminal</span>
+                    <span style="color:#aaa;">vladistone@studio:~</span>
+                </div>
+                <div class="terminal-log-area" id="cli-logger-stream">
+                </div>
+            </div>
+        </div>
+        <!-- Правый сайдбар Contextual Documentation (Knowledge Base) -->
+        <div class="kb-sidebar">
+            <div class="sidebar-title">📚 Contextual Documentation</div>
+            <div class="kb-content-area" id="kb-viewer-node">Выберите параметр для отображения справки из GearMapTemplate.txt...
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-container">
+        <div>&copy; 2026 SUNO_MPC Engine by Vladistone rev.0.0. All Rights Reserved.</div>
+			<div>
+    			<img src="/png/VL_Guitar.jpg" alt="Vladistone" style="height: 32px; display: block; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+			</div>
+        <div class="footer-links">
+            <a href="https://github.com/Vladistone/SUNO_MPC" target="https://github.com/Vladistone/SUNO_MPC">Project (modular)</a>
+            <a href="https://github.com/Vladistone/SUNO_MPC/issues" target="https://github.com/Vladistone/SUNO_MPC/issues">Issues</a>
+        </div>
+    </div>
+
+    <script>
+        let repository = [];
+        let selectedId = "";
+        // 5. Инициализация новой монолитной структуры полей
+        const formHTML = `
+            <!-- 1.0: META DATA (РАСТЯНУТА НА 100% ШИРИНЫ)-->
+            <div class="fieldset-group meta-wide-block">
+                <div class="group-header">01. META DATA & DOCUMENTATION</div>
+                <div class="meta-grid-inside">
+                    <div>
+                        <div class="form-row">
+                            <label title="DEVICE_ID">1.1.0 <span class="required-marker">*</span></label>
+                            <input type="text" id="field_1.1.0" oninput="updateField('DEVICE_ID', this.value)">
+                        </div>
+                        <div class="help-info">Unique engine profile database identifier (e.g., ssl-nucleus2).</div>
+
+                        <div class="form-row">
+                            <label title="DEVICE_NAME">1.2.0 <span class="required-marker">*</span></label>
+                            <input type="text" id="field_1.2.0" oninput="updateField('DEVICE_NAME', this.value)">
+                        </div>
+                        <div class="help-info">Full commercial manufacturer hardware name.</div>
+
+                        <div class="form-row">
+                            <label title="VENDOR">1.3.0 <span class="required-marker">*</span></label>
+                            <select id="field_1.3.0" onchange="updateField('VENDOR', this.value)">
+                                <option value="Generic">Generic / Custom</option>
+                                <option value="Solid State Logic">Solid State Logic</option>
+                                <option value="Tascam">Tascam</option>
+                                <option value="Nektar">Nektar</option>
+                                <option value="Roli">Roli</option>
+                                <option value="Mackie">Mackie</option>
+                                <option value="Akai">Akai</option>
+                                
+                            </select>
+                        </div>
+                        <div class="help-info">Hardware manufacturer company branding profile name.</div>
+                    </div>
+                    <div>
+                        <div class="form-row">
+                            <label title="DOCUMENTATION_URL">DOCUMENTATION_URL</label>
+                            <input type="text" id="field_DOCUMENTATION_URL" oninput="updateField('DOCUMENTATION_URL', this.value)">
+                        </div>
+                        <div class="help-info">Link to user scripts or complete implementation specifications.</div>
+                        
+                        <div class="form-row">
+                            <label title="MAIN_REF_MANUAL">MAIN_REF_MANUAL</label>
+                            <input type="text" id="field_MAIN_REF_MANUAL" oninput="updateField('MAIN_REF_MANUAL', this.value)">
+                        </div>
+                        <div class="help-info">Reference manual filename or datasheet documentation link.</div>
+                        <div class="form-row">
+                            <label title="SECONDARY_REF_DATASHEET">SECONDARY_REF_DATASHEET</label>
+                            <input type="text" id="field_REF_DATASHEET" oninput="updateField('REF_DATASHEET', this.value)">
+                        </div>
+                        <div class="help-info">Reference manual filename or datasheet documentation link.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- НАЧАЛО ДВУХКОЛОНОЧНОГО БЛОКА СИНХРОНИЗАЦИИ ВЫСОТЫ -->
+            <div class="columns-flex-wrapper">
+                
+                <!-- ЖЕСТКАЯ ЛЕВАЯ КОЛОНКА (Группы 02, 03, 04) -->
+                <div class="content-column">
+                    <!-- ГРУППА 2: CONNECTIVITY & PORTS -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">02. CONNECTIVITY & INTERFACES</div>
+                        
+                        <div class="form-row">
+                            <label title="TOTAL_PHYSICAL_PORTS">TOTAL_PHYSICAL_PORTS <span class="required-marker">*</span></label>
+                            <input type="number" id="field_TOTAL_PHYSICAL_PORTS" oninput="updateField('TOTAL_PHYSICAL_PORTS', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total hardware sockets available on surface backplate.</div>
+
+                        <div class="form-row">
+                            <label title="PHYSICAL_PORTS_LIST">PHYSICAL_PORTS_LIST</label>
+                            <input type="text" id="field_PHYSICAL_PORTS_LIST" oninput="updateArrayField('PHYSICAL_PORTS_LIST', this.value)">
+                        </div>
+                        <div class="help-info">Comma-separated hardware ports (e.g., USB_HID, LINK_Ext).</div>
+
+                        <div class="form-row">
+                            <label title="PROTOCOLS_HARDWARE">PROTOCOLS_HARDWARE</label>
+                            <input type="text" id="field_PROTOCOLS_HARDWARE" oninput="updateArrayField('PROTOCOLS_HARDWARE', this.value)">
+                        </div>
+                        <div class="help-info">Physical wire/wireless layers: USB, Ethernet, DIN-5.</div>
+
+                        <div class="form-row">
+                            <label title="PROTOCOLS_TRANSPORT">PROTOCOLS_TRANSPORT</label>
+                            <input type="text" id="field_PROTOCOLS_TRANSPORT" oninput="updateArrayField('PROTOCOLS_TRANSPORT', this.value)">
+                        </div>
+                        <div class="help-info">Data transport layer packaging: ipMIDI, RTP_MIDI, OSC.</div>
+
+                        <div class="form-row">
+                            <label title="PROTOCOLS_APPLICATION">PROTOCOLS_APPLICATION</label>
+                            <input type="text" id="field_PROTOCOLS_APPLICATION" oninput="updateArrayField('PROTOCOLS_APPLICATION', this.value)">
+                        </div>
+                        <div class="help-info">Supported mapper software profiles: MCU, HUI, CC#, MPE.</div>
+
+                        <div class="form-row">
+                            <label title="PROTOCOLS_NUMBER">PROTOCOLS_NUMBER <span class="required-marker">*</span></label>
+                            <input type="number" id="field_PROTOCOLS_NUMBER" oninput="updateField('PROTOCOLS_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Number of concurrent protocols active inside engine.</div>
+
+                        <div class="form-row">
+                            <label title="TOTAL_DAW_LAYERS">TOTAL_DAW_LAYERS</label>
+                            <input type="number" id="field_TOTAL_DAW_LAYERS" oninput="updateField('TOTAL_DAW_LAYERS', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Independent layout profile map slots toggleable on surface.</div>
+                    </fieldset>
+
+                    <!-- ГРУППА 3: HARDWARE ARCHITECTURE -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">03. HARDWARE CONTROL ARCHITECTURE</div>
+                        
+                        <div class="form-row">
+                            <label title="TOTAL_PHYSICAL_CHANNELS">TOTAL_PHYSICAL_CHANNELS <span class="required-marker">*</span></label>
+                            <input type="number" id="field_TOTAL_PHYSICAL_CHANNELS" oninput="updateField('TOTAL_PHYSICAL_CHANNELS', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Number of channel fader lanes present on surface block.</div>
+
+                        <div class="form-row">
+                            <label title="FADER_BIT_RESOLUTION">FADER_BIT_RESOLUTION</label>
+                            <select id="field_FADER_BIT_RESOLUTION" onchange="updateField('FADER_BIT_RESOLUTION', parseInt(this.value))">
+                                <option value="7">7-bit (0-127 MIDI CC Standard)</option>
+                                <option value="14">14-bit (Pitch Bend / High Res)</option>
+                            </select>
+                        </div>
+                        <div class="help-info">Data resolution bit depth limit for fader locomotion.</div>
+
+                        <div class="form-row">
+                            <label title="FADER_MOTORIZED_COUNT">FADER_MOTORIZED_COUNT</label>
+                            <input type="number" id="field_FADER_MOTORIZED_COUNT" oninput="updateField('FADER_MOTORIZED_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total count of physical motorized faders with engines.</div>
+
+                        <div class="form-row">
+                            <label title="FADER_TOUCH_SENSITIVE_COUNT">FADER_TOUCH_SENSITIVE_COUNT</label>
+                            <input type="number" id="field_FADER_TOUCH_SENSITIVE_COUNT" oninput="updateField('FADER_TOUCH_SENSITIVE_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Count of touch-capacitive faders capturing touch states.</div>
+
+                        <div class="form-row">
+                            <label title="SINGLE_MASTER_FADER">SINGLE_MASTER_FADER</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SINGLE_MASTER_FADER" onchange="updateField('SINGLE_MASTER_FADER', this.checked)"> <span>Has Standalone Master Fader</span></div>
+                        </div>
+                        <div class="help-info">Is an independent isolated 9th fader built into hardware.</div>
+                        
+                        <div class="form-row">
+                            <label title="MASTER_FADER_BIT_RESOLUTION">MASTER_FADER_BIT_RESOLUTION</label>
+                            <input type="text" id="field_MASTER_FADER_BIT_RESOLUTION" oninput="updateField('MASTER_FADER_BIT_RESOLUTION', this.value)">
+                        </div>
+                        <div class="help-info">Resolution bit depth for the dedicated Master fader channel.</div>
+
+                        <div class="form-row">
+                            <label title="VPOT_ENCODER_COUNT">VPOT_ENCODER_COUNT</label>
+                            <input type="number" id="field_VPOT_ENCODER_COUNT" oninput="updateField('VPOT_ENCODER_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total endless rotary encoders/V-Pots on mixer strip bank.</div>
+
+                        <div class="form-row">
+                            <label title="VPOT_SW_COUNT">VPOT_SW_COUNT</label>
+                            <input type="number" id="field_VPOT_SW_COUNT" oninput="updateField('VPOT_SW_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Rotary encoders featuring a digital push-down click switch.</div>
+                        
+                        <div class="form-row">
+                            <label title="BUTTON_MOMENTARY_COUNT">BUTTON_MOMENTARY_COUNT</label>
+                            <input type="number" id="field_BUTTON_MOMENTARY_COUNT" oninput="updateField('BUTTON_MOMENTARY_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total hardware non-latching buttons sending separate On/Off ticks.</div>
+                        
+                        <div class="form-row">
+                            <label title="BUTTON_TOGGLE_COUNT">BUTTON_TOGGLE_COUNT</label>
+                            <input type="number" id="field_BUTTON_TOGGLE_COUNT" oninput="updateField('BUTTON_TOGGLE_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total hardware locking toggles maintaining an internal status.</div>
+                        
+                        <div class="form-row">
+                            <label title="FOOT_SWITCH_NUMBER">FOOT_SWITCH_NUMBER</label>
+                            <input type="number" id="field_FOOT_SWITCH_NUMBER" oninput="updateField('FOOT_SWITCH_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Rear jack sockets available for sustain/latch pedals.</div>
+                        
+                        <div class="form-row">
+                            <label title="EXPRESSION_PEDAL_NUMBER">EXPRESSION_PEDAL_NUMBER</label>
+                            <input type="number" id="field_EXPRESSION_PEDAL_NUMBER" oninput="updateField('EXPRESSION_PEDAL_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Continuous voltage expression pedal TRS inputs.</div>
+                    </fieldset>
+
+                    <!-- ГРУППА 4: TRANSPORT NAVIGATION & HID -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">04. TRANSPORT NAVIGATION & HID</div>
+                        
+                        <div class="form-row">
+                            <label title="SW_BANK_STEP_-/+_ABLE">SW_BANK_STEP_-/+_ABLE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_BANK_STEP_-/+_ABLE" onchange="updateField('SW_BANK_STEP_-/+_ABLE', this.checked)"> <span>Bank Shifts (8 Tracks)</span></div>
+                        </div>
+                        <div class="help-info">Enables boundary bank scrolling transitions by step offsets.</div>
+
+                        <div class="form-row">
+                            <label title="SW_CHAN_STEP_-/+_ABLE">SW_CHAN_STEP_-/+_ABLE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_CHAN_STEP_-/+_ABLE" onchange="updateField('SW_CHAN_STEP_-/+_ABLE', this.checked)"> <span>Single Channel Shifts</span></div>
+                        </div>
+                        <div class="help-info">Increments mixer lane assignment focused bank offset by 1 track.</div>
+
+                        <div class="form-row">
+                            <label title="SW_ZOOM_MODE">SW_ZOOM_MODE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_ZOOM_MODE" onchange="updateField('SW_ZOOM_MODE', this.checked)"> <span>Zoom Navigation Toggle</span></div>
+                        </div>
+                        <div class="help-info">Changes cursor button logic into screen magnification focus bounds.</div>
+
+                        <div class="form-row">
+                            <label title="SW_NAVIGATE_RAW_L/R">SW_NAVIGATE_RAW_L/R</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_NAVIGATE_RAW_L/R" onchange="updateField('SW_NAVIGATE_RAW_L/R', this.checked)"> <span>Horizontal Keys (Left/Right)</span></div>
+                        </div>
+                        <div class="help-info">Left/Right tactile button arrows active inside map layers.</div>
+
+                        <div class="form-row">
+                            <label title="SW_NAVIGATE_UP/DOWN">SW_NAVIGATE_UP/DOWN</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_NAVIGATE_UP/DOWN" onchange="updateField('SW_NAVIGATE_UP/DOWN', this.checked)"> <span>Vertical Keys (Up/Down)</span></div>
+                        </div>
+                        <div class="help-info">Up/Down tactile button arrows active inside map layers.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTOMATION">SW_AUTOMATION</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTOMATION" onchange="updateField('SW_AUTOMATION', this.checked)"> <span>Global Auto Toggle</span></div>
+                        </div>
+                        <div class="help-info">Master system control switch enabling envelope read/write macros.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_REC">SW_AUTO_REC</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_REC" onchange="updateField('SW_AUTO_REC', this.checked)"> <span>Hardware Automation Rec *</span></div>
+                        </div>
+                        <div class="help-info">Dedicated physical button triggering automated trace passes.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_READ">SW_AUTO_READ</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_READ" onchange="updateField('SW_AUTO_READ', this.checked)"> <span>Automation Read Key</span></div>
+                        </div>
+                        <div class="help-info">Commands studio faders to follow pre-recorded line vectors.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_WRITE">SW_AUTO_WRITE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_WRITE" onchange="updateField('SW_AUTO_WRITE', this.checked)"> <span>Automation Write Key</span></div>
+                        </div>
+                        <div class="help-info">Enables destructive timeline fader locomotion trace overwrites.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_TOUCH">SW_AUTO_TOUCH</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_TOUCH" onchange="updateField('SW_AUTO_TOUCH', this.checked)"> <span>Automation Touch Key</span></div>
+                        </div>
+                        <div class="help-info">Overwrites tracking values strictly on capacitive physical hand contact.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_LATCH">SW_AUTO_LATCH</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_LATCH" onchange="updateField('SW_AUTO_LATCH', this.checked)"> <span>Automation Latch Key</span></div>
+                        </div>
+                        <div class="help-info">Maintains value capturing state indefinitely upon knob release.</div>
+
+                        <div class="form-row">
+                            <label title="SW_AUTO_TRIM">SW_AUTO_TRIM</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SW_AUTO_TRIM" onchange="updateField('SW_AUTO_TRIM', this.checked)"> <span>Automation Trim Key</span></div>
+                        </div>
+                        <div class="help-info">Applies proportional micro-adjustments relative to pre-existing curves.</div>
+
+                        <div class="form-row">
+                            <label title="PLAY / STOP / REC">TRANSPORT CONTROLS</label>
+                            <div class="checkbox-row">
+                                <label style="width:auto;"><input type="checkbox" id="field_PLAY" onchange="updateField('PLAY', this.checked)"> PLY</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_STOP" onchange="updateField('STOP', this.checked)"> STP</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_REC" onchange="updateField('REC', this.checked)"> RC</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_PREV" onchange="updateField('PREV', this.checked)"> PRV</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_NEXT" onchange="updateField('NEXT', this.checked)"> NXT</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_CYCLE" onchange="updateField('CYCLE', this.checked)"> CYC</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_RTZ" onchange="updateField('RTZ', this.checked)"> RTZ</label>
+                                <label style="width:auto;"><input type="checkbox" id="field_END" onchange="updateField('END', this.checked)"> END</label>
+                            </div>
+                        </div>
+                        <div class="help-info">Standard MMC/MCU tape deck machine locomotion button blocks.</div>
+
+                        <div class="form-row">
+                            <label title="SCRUBBLE_SW">SCRUBBLE_SW</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SCRUBBLE_SW" onchange="updateField('SCRUBBLE_SW', this.checked)"> <span>Scrub Navigation Mode</span></div>
+                        </div>
+                        <div class="help-info">Engages precision timeline scrubbing logic on jog dial rotations.</div>
+
+                        <div class="form-row">
+                            <label title="JOG_WHEEL">JOG_WHEEL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_JOG_WHEEL" onchange="updateField('JOG_WHEEL', this.checked)"> <span>Rotary Jog Wheel dial</span></div>
+                        </div>
+                        <div class="help-info">Infinite rotating optical encoder wheel for scrubbing location timelines.</div>
+                    </fieldset>
+
+                    <!-- ГРУППА 5: USER MODE & HID communnication -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">5. USER MODE & HID COMMUNICATION</div>
+                        <div class="form-row">
+                            <label title="USER_MODE_NUMBER">USER_MODE_NUMBER</label>
+                            <input type="number" id="field_USER_MODE_NUMBER" oninput="updateField('USER_MODE_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Quantity of customizable user macro assignment layer indices.</div>
+
+                        <div class="form-row">
+                            <label title="FUNC_KEY_NUMBER">FUNC_KEY_NUMBER</label>
+                            <input type="number" id="field_FUNC_KEY_NUMBER" oninput="updateField('FUNC_KEY_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total count of standard hardware function utility F-Keys.</div>
+
+                        <div class="form-row">
+                            <label title="SOFT_KEY_NUMBER">SOFT_KEY_NUMBER</label>
+                            <input type="number" id="field_SOFT_KEY_NUMBER" oninput="updateField('SOFT_KEY_NUMBER', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total number of software-assignable contextual matrix buttons.</div>
+
+                        <div class="form-row">
+                            <label title="HID_KEYBOARD_EMULATION">HID_KEYBOARD_EMULATION</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_HID_KEYBOARD_EMULATION" onchange="updateField('HID_KEYBOARD_EMULATION', this.checked)"> <span>USB QWERTY HID Emulation</span></div>
+                        </div>
+                        <div class="help-info">Hardware registers a separate virtual computer keyboard connection.</div>
+
+                        <div class="form-row">
+                            <label title="FOLLOW_KEY_STATE_SUPPORT">FOLLOW_KEY_STATE_SUPPORT</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FOLLOW_KEY_STATE_SUPPORT" onchange="updateField('FOLLOW_KEY_STATE_SUPPORT', this.checked)"> <span>Key-Hold State</span></div>
+                        </div>
+                        <div class="help-info">Transmits explicit separate KeyDown/KeyUp signals instead of singular pulses.</div>
+
+                        <div class="form-row">
+                            <label title="MODIFIER_ONLY_EMULATION">MODIFIER_ONLY_EMULATION</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MODIFIER_ONLY_EMULATION" onchange="updateField('MODIFIER_ONLY_EMULATION', this.checked)"> <span>Bare Modifiers Output</span></div>
+                        </div>
+                        <div class="help-info">Allows sending pure Shift/Ctrl codes isolated from char bytes.</div>
+
+                        <div class="form-row">
+                            <label title="TRIGGER_CHANNEL_SEL_KEY">TRIGGER_CHANNEL_SEL_KEY</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_TRIGGER_CHANNEL_SEL_KEY" onchange="updateField('TRIGGER_CHANNEL_SEL_KEY', this.checked)"> <span>Select Auto Focus Link</span></div>
+                        </div>
+                        <div class="help-info">Channel selection matrix button sends automatic active tracking triggers.</div>
+
+                        <div class="form-row">
+                            <label title="TRIGGER_ASCII_HOT_KEY">TRIGGER_ASCII_HOT_KEY</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_TRIGGER_ASCII_HOT_KEY" onchange="updateField('TRIGGER_ASCII_HOT_KEY', this.checked)"> <span>ASCII Shortcut Mapping</span></div>
+                        </div>
+                        <div class="help-info">Enables assigning alpha-numeric key sequences onto soft keys.</div>
+
+                        <div class="form-row">
+                            <label title="TRIGGER_ASCII_KEY_COMBINATION">TRIGGER_ASCII_KEY_COMBINATION</label>
+                            <input type="text" id="field_TRIGGER_ASCII_KEY_COMBINATION" oninput="updateField('TRIGGER_ASCII_KEY_COMBINATION', this.value)">
+                        </div>
+                        <div class="help-info">Exact character code syntax macro written for macros (e.g., Shift+S).</div>
+                    </fieldset>
+                </div>
+
+                <!-- ЖЕСТКАЯ ПРАВАЯ КОЛОНКА (Группы 05, 06, 07) -->
+                <div class="content-column">
+                    <!-- ГРУППА 5: FEEDBACK CAPABILITIES -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">06. FEEDBACK CAPABILITIES MATRIX</div>
+                        
+                        <div class="form-row">
+                            <label title="FB_MOTORIZED_FADERS">FB_MOTORIZED_FADERS</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_MOTORIZED_FADERS" onchange="updateField('FB_MOTORIZED_FADERS', this.checked)"> <span>Motorized feedback</span></div>
+                        </div>
+                        <div class="help-info">Faders move physically based on incoming volume data.</div>
+
+                        <div class="form-row">
+                            <label title="FB_FADER_TOUCH_SENS.">FB_FADER_TOUCH_SENS.</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_FADER_TOUCH_SENS." onchange="updateField('FB_FADER_TOUCH_SENS.', this.checked)"> <span>Fader touch sens.</span></div>
+                        </div>
+                        <div class="help-info">Triggers automation touch write states on physical skin contact.</div>
+
+                        <div class="form-row">
+                            <label title="FB_MOTORIZED_ENCODERS">FB_MOTORIZED_ENCODERS</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_MOTORIZED_ENCODERS" onchange="updateField('FB_MOTORIZED_ENCODERS', this.checked)"> <span>Motorized Encoders</span></div>
+                        </div>
+                        <div class="help-info">Active physical motor detents built into rotary control pots.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_VPOT_RINGS">FB_LED_VPOT_RINGS</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_LED_VPOT_RINGS" onchange="updateField('FB_LED_VPOT_RINGS', this.checked)"> <span>V-Pot Rings LED</span></div>
+                        </div>
+                        <div class="help-info">Hardware diod arc indicators around encoder shafts.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_VPOT_RING_MODES">FB_LED_VPOT_RING_MODES</label>
+                            <input type="text" id="field_FB_LED_VPOT_RING_MODES" oninput="updateArrayField('FB_LED_VPOT_RING_MODES', this.value)">
+                        </div>
+                        <div class="help-info">Arc display styles: single_dot, boost_cut, wrap, spread.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LCD_SCRIBBLE_STRIPS">FB_LCD_SCRIBBLE_STRIPS</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_LCD_SCRIBBLE_STRIPS" onchange="updateField('FB_LCD_SCRIBBLE_STRIPS', this.checked)"> <span>Scribble Strips</span></div>
+                        </div>
+                        <div class="help-info">Hardware has text displays above channel fader lanes.</div>
+
+                        <div class="form-row">
+                            <label title="LCD_RESPONSABLE">LCD_RESPONSABLE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_LCD_RESPONSABLE" onchange="updateField('LCD_RESPONSABLE', this.checked)"> <span>LCD Dyn. Response</span></div>
+                        </div>
+                        <div class="help-info">Screens refresh rapidly on runtime controller status update streams.</div>
+
+                        <div class="form-row">
+                            <label title="MCU_CHARS_PER_CHANNEL">MCU_CHARS_PER_CHANNEL</label>
+                            <input type="number" id="field_MCU_CHARS_PER_CHANNEL" oninput="updateField('MCU_CHARS_PER_CHANNEL', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Character cell width limit per channel under MCU standard (7 max).</div>
+
+                        <div class="form-row">
+                            <label title="HUI_CHARS_PER_CHANNEL">HUI_CHARS_PER_CHANNEL</label>
+                            <input type="number" id="field_HUI_CHARS_PER_CHANNEL" oninput="updateField('HUI_CHARS_PER_CHANNEL', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Character cell width limit per channel under HUI standard (4 max).</div>
+
+                        <div class="form-row">
+                            <label title="LCD_CHANNEL_SPACER_CHAR">LCD_CHANNEL_SPACER_CHAR</label>
+                            <input type="text" id="field_LCD_CHANNEL_SPACER_CHAR" maxlength="1" oninput="updateField('LCD_CHANNEL_SPACER_CHAR', this.value)">
+                        </div>
+                        <div class="help-info">Visual delimiter used to isolate track strings on display lane.</div>
+
+                        <div class="form-row">
+                            <label title="LCD_GLOBAL_MSG_SUPPORT">LCD_GLOBAL_MSG_SUPPORT</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_LCD_GLOBAL_MSG_SUPPORT" onchange="updateField('LCD_GLOBAL_MSG_SUPPORT', this.checked)"> <span>Global banner text</span></div>
+                        </div>
+                        <div class="help-info">Surface merges track screens into one wide system info row.</div>
+
+                        <div class="form-row">
+                            <label title="LCD_MSG_CHARS_FORMULA">LCD_MSG_CHARS_FORMULA</label>
+                            <input type="text" id="field_LCD_MSG_CHARS_FORMULA" oninput="updateField('LCD_MSG_CHARS_FORMULA', this.value)">
+                        </div>
+                        <div class="help-info">Matrix grid dimension expression (e.g., 2x56 total rows).</div>
+
+                        <div class="form-row">
+                            <label title="FB_LCD_METER_BRIDGE">FB_LCD_METER_BRIDGE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_LCD_METER_BRIDGE" onchange="updateField('FB_LCD_METER_BRIDGE', this.checked)"> <span>LCD Meter Bridge</span></div>
+                        </div>
+                        <div class="help-info">Virtual leveling tracks rendered directly inside channel display.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_7_SEG_PARAM">FB_LED_7_SEG_PARAM</label>
+                            <input type="text" id="field_FB_LED_7_SEG_PARAM" oninput="updateField('FB_LED_7_SEG_PARAM', this.value)">
+                        </div>
+                        <div class="help-info">Target data directed to numeric red LEDs (e.g., time_code).</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_7_SEG_CHARS_COUNT">FB_LED_7_SEG_CHARS_COUNT <span class="required-marker">*</span></label>
+                            <input type="number" id="field_FB_LED_7_SEG_CHARS_COUNT" oninput="updateField('FB_LED_7_SEG_CHARS_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total digital numbers on time display block (MCU uses 10).</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_BUTTON_STATES">FB_LED_BUTTON_STATES</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_LED_BUTTON_STATES" onchange="updateField('FB_LED_BUTTON_STATES', this.checked)"> <span>LED Button States</span></div>
+                        </div>
+                        <div class="help-info">Internal key diodes follow selection status from web backend.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_BUTTON_COUNT">FB_LED_BUTTON_COUNT</label>
+                            <input type="number" id="field_FB_LED_BUTTON_COUNT" oninput="updateField('FB_LED_BUTTON_COUNT', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total index count of key buttons equipped with status lights.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_BUTTON_COLOR_TYPE">FB_LED_BUTTON_COLOR_TYPE</label>
+                            <select id="field_FB_LED_BUTTON_COLOR_TYPE" onchange="updateField('FB_LED_BUTTON_COLOR_TYPE', this.value)">
+                                <option value="monochrome">monochrome (Single Color)</option>
+                                <option value="dual_color">dual_color (Bi-Color Diodes)</option>
+                                <option value="RGB">RGB (Full Color Spectrum)</option>
+                            </select>
+                        </div>
+                        <div class="help-info">Color depth architecture of physical switch indicators.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_SIGNAL_PEAK_METERS">FB_LED_SIGNAL_PEAK_METERS</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FB_LED_SIGNAL_PEAK_METERS" onchange="updateField('FB_LED_SIGNAL_PEAK_METERS', this.checked)"> <span>Signal Peak Meters</span></div>
+                        </div>
+                        <div class="help-info">Physical audio volume ladder trees tracking input overload peaks.</div>
+
+                        <div class="form-row">
+                            <label title="FB_LED_METER_RESOLUTION_SEG.">FB_LED_METER_RESOLUTION_SEG.</label>
+                            <input type="number" id="field_FB_LED_METER_RESOLUTION_SEG." oninput="updateField('FB_LED_METER_RESOLUTION_SEG.', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Total quantity of individual light cells built into channel ladder meter.</div>
+                    </fieldset>
+
+                    <!-- ГРУППА 7: OPERATION MODES -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">07. OPERATION MODES & AUTOMATION</div>
+                        
+                        <div class="form-row">
+                            <label title="MODE_TRACK_CONTROL">MODE_TRACK_CONTROL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MODE_TRACK_CONTROL" onchange="updateField('MODE_TRACK_CONTROL', this.checked)"> <span>Track mixing control</span></div>
+                        </div>
+                        <div class="help-info">Faders map onto linear audio mixer fader strips in web app.</div>
+
+                        <div class="form-row">
+                            <label title="MODE_FX_CHANNEL_STRIP">MODE_FX_CHANNEL_STRIP</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MODE_FX_CHANNEL_STRIP" onchange="updateField('MODE_FX_CHANNEL_STRIP', this.checked)"> <span>FX Channel Strip mode</span></div>
+                        </div>
+                        <div class="help-info">Encoders translate into plugin parametric equalizer/compressor maps.</div>
+
+                        <div class="form-row">
+                            <label title="MODE_MIDI_PIANO_KEY">MODE_MIDI_PIANO_KEY</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MODE_MIDI_PIANO_KEY" onchange="updateField('MODE_MIDI_PIANO_KEY', this.checked)"> <span>Piano Note Trigger board</span></div>
+                        </div>
+                        <div class="help-info">Surface keys interface with virtual note synthesizers.</div>
+
+                        <div class="form-row">
+                            <label title="MODE_PAD_DRUM_MODE">MODE_PAD_DRUM_MODE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MODE_PAD_DRUM_MODE" onchange="updateField('MODE_PAD_DRUM_MODE', this.checked)"> <span>Pad Drum Map Grid</span></div>
+                        </div>
+                        <div class="help-info">Surface changes key mappings into standard dynamic triggers for drums.</div>
+
+                        <div class="form-row">
+                            <label title="PARAM_CHANGE_SW">PARAM_CHANGE_SW</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_PARAM_CHANGE_SW" onchange="updateField('PARAM_CHANGE_SW', this.checked)"> <span>Parameter Assignment Switch</span></div>
+                        </div>
+                        <div class="help-info">Dedicated hardware key to swap parameter categories on encoders.</div>
+
+                        <div class="form-row">
+                            <label title="FLIP_MODE_SW">FLIP_MODE_SW</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_FLIP_MODE_SW" onchange="updateField('FLIP_MODE_SW', this.checked)"> <span>Encoder-Fader Flip Control</span></div>
+                        </div>
+                        <div class="help-info">Instantly swaps mapped values between faders and V-Pots.</div>
+
+                        <div class="form-row">
+                            <label title="LEARN_FUTURE">LEARN_FUTURE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_LEARN_FUTURE" onchange="updateField('LEARN_FUTURE', this.checked)"> <span>MIDI Learn Target Capture</span></div>
+                        </div>
+                        <div class="help-info">Enables deep contextual user assignment overwrites.</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_FADER">MAPPED_ELEMENT_FADER</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_FADER" oninput="updateField('MAPPED_ELEMENT_FADER', this.value)">
+                        </div>
+                        <div class="help-info">Default destination macro assigned to main faders (e.g., volume).</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_VPOT">MAPPED_ELEMENT_VPOT</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_VPOT" oninput="updateField('MAPPED_ELEMENT_VPOT', this.value)">
+                        </div>
+                        <div class="help-info">Default destination macro assigned to rotary pots (e.g., pan).</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_VPOT_SW">MAPPED_ELEMENT_VPOT_SW</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_VPOT_SW" oninput="updateField('MAPPED_ELEMENT_VPOT_SW', this.value)">
+                        </div>
+                        <div class="help-info">Default destination macro for encoder push click (e.g., RST).</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_BUTTON_0">MAPPED_ELEMENT_BUTTON_0</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_BUTTON_0" oninput="updateField('MAPPED_ELEMENT_BUTTON_0', this.value)">
+                        </div>
+                        <div class="help-info">Primary strip button macro mapping index (e.g., select).</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_BUTTON_1">MAPPED_ELEMENT_BUTTON_1</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_BUTTON_1" oninput="updateField('MAPPED_ELEMENT_BUTTON_1', this.value)">
+                        </div>
+                        <div class="help-info">Secondary strip button macro mapping index (e.g., mute).</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_BUTTON_2">MAPPED_ELEMENT_BUTTON_2</label>
+                            <input type="text" id="field_MAPPED_ELEMENT_BUTTON_2" oninput="updateField('MAPPED_ELEMENT_BUTTON_2', this.value)">
+                        </div>
+                        <div class="help-info">Tertiary strip button macro mapping index (e.g., solo).</div>
+                    </fieldset>
+
+                    <!-- ГРУППА 8: MPE & ADVANCED EXPRESSION -->
+                    <fieldset class="fieldset-group">
+                        <div class="group-header">08. MPE & EXPRESSION MATRIX</div>
+                        
+                        <div class="form-row">
+                            <label title="SUPPORT_MPE">SUPPORT_MPE</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SUPPORT_MPE" onchange="updateField('SUPPORT_MPE', this.checked)"> <span>Enable MIDI Polyphonic Expression</span></div>
+                        </div>
+                        <div class="help-info">Enables polyphonic dimensional note controls engine maps.</div>
+
+                        <div class="form-row">
+                            <label title="MPE_POLYPHONIC_AFTERTOUCH">MPE_POLYPHONIC_AFTERTOUCH</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MPE_POLYPHONIC_AFTERTOUCH" onchange="updateField('MPE_POLYPHONIC_AFTERTOUCH', this.checked)"> <span>Polyphonic Aftertouch</span></div>
+                        </div>
+                        <div class="help-info">Pressure streams processed isolated per separate active note key.</div>
+
+                        <div class="form-row">
+                            <label title="MPE_PITCH_BEND_RESOLUTION">MPE_PITCH_BEND_RESOLUTION</label>
+                            <input type="number" id="field_MPE_PITCH_BEND_RESOLUTION" oninput="updateField('MPE_PITCH_BEND_RESOLUTION', parseInt(this.value)||0)">
+                        </div>
+                        <div class="help-info">Resolution bit depth for individual polyphonic pitch bend streams.</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_PITCH_WHEEL">MAPPED_ELEMENT_PITCH_WHEEL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MAPPED_ELEMENT_PITCH_WHEEL" onchange="updateField('MAPPED_ELEMENT_PITCH_WHEEL', this.checked)"> <span>Has Spring Pitch Wheel</span></div>
+                        </div>
+                        <div class="help-info">Dedicated spring-centered wheel for continuous pitch shifts.</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_MOD_WHEEL">MAPPED_ELEMENT_MOD_WHEEL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MAPPED_ELEMENT_MOD_WHEEL" onchange="updateField('MAPPED_ELEMENT_MOD_WHEEL', this.checked)"> <span>Has Modulation Wheel</span></div>
+                        </div>
+                        <div class="help-info">Standard index continuous CC#1 modulation wheel slider.</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_RIBBON_CONTROL">MAPPED_ELEMENT_RIBBON_CONTROL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MAPPED_ELEMENT_RIBBON_CONTROL" onchange="updateField('MAPPED_ELEMENT_RIBBON_CONTROL', this.checked)"> <span>Has Linear Ribbon strip</span></div>
+                        </div>
+                        <div class="help-info">Continuous long touch sensory tape strip for pitch macros.</div>
+
+                        <div class="form-row">
+                            <label title="MAPPED_ELEMENT_XY_PAD">MAPPED_ELEMENT_XY_PAD</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_MAPPED_ELEMENT_XY_PAD" onchange="updateField('MAPPED_ELEMENT_XY_PAD', this.checked)"> <span>Has 2D X/Y Touchpad</span></div>
+                        </div>
+                        <div class="help-info">Two-axis touch responsive sensor grid capturing coordinates.</div>
+
+                        <div class="form-row">
+                            <label title="SUPPORT_BREATH_CONTROL">SUPPORT_BREATH_CONTROL</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SUPPORT_BREATH_CONTROL" onchange="updateField('SUPPORT_BREATH_CONTROL', this.checked)"> <span>Breath Controller (CC#2)</span></div>
+                        </div>
+                        <div class="help-info">Hardware captures airflow velocity vectors from wind controller.</div>
+                        
+                        <div class="form-row">
+                            <label title="SUPPORT_AFTERTOUCH_MONO">SUPPORT_AFTERTOUCH_MONO</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SUPPORT_AFTERTOUCH_MONO" onchange="updateField('SUPPORT_AFTERTOUCH_MONO', this.checked)"> <span>Channel Aftertouch (Mono)</span></div>
+                        </div>
+                        <div class="help-info">Global pressure value calculated across active surface.</div>
+                        
+                        <div class="form-row">
+                            <label title="SUPPORT_NRPN">SUPPORT_NRPN</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SUPPORT_NRPN" onchange="updateField('SUPPORT_NRPN', this.checked)"> <span>Non-Registered Parameter Num</span></div>
+                        </div>
+                        <div class="help-info">Accepts complex combined 14-bit high-res index parameters.</div>
+                        
+                        <div class="form-row">
+                            <label title="SUPPORT_SysEx">SUPPORT_SysEx</label>
+                            <div class="checkbox-row"><input type="checkbox" id="field_SUPPORT_SysEx" onchange="updateField('SUPPORT_SysEx', this.checked)"> <span>MIDI System Exclusive</span></div>
+                        </div>
+                        <div class="help-info">Supports raw programmatic manufacturer configuration dumps.</div>
+            </fieldset>
+        </div>
+    </div>
+    `;
+        // 6. Инициализация новой монолитной структуры полей на странице
+        document.getElementById('editor-form-fields').innerHTML = formHTML;
+
+        // 6.1 Наполнение базового пула репозитория (SSL, Nektar, Roli, Mackie)
+        repository = [
+            {
+                "DEVICE_ID": "ssl_nucleus2_master",
+                "DEVICE_NAME": "SSL Nucleus 2",
+                "VENDOR": "Solid State Logic",
+                "DOCUMENTATION_URL": "https://github.com",
+                "TOTAL_PHYSICAL_PORTS": 3,
+                "PHYSICAL_PORTS_LIST": ["USB_HID", "ipMIDI_Ethernet", "LINK_Ext"],
+                "PROTOCOLS_HARDWARE": ["USB", "Ethernet", "DIN-5"],
+                "PROTOCOLS_TRANSPORT": ["ipMIDI", "RTP_MIDI", "OSC"],
+                "PROTOCOLS_APPLICATION": ["MCU", "HUI", "CC#", "ASCII"],
+                "PROTOCOLS_NUMBER": 3,
+                "TOTAL_DAW_LAYERS": 3,
+                "TOTAL_PHYSICAL_CHANNELS": 8,
+                "FADER_BIT_RESOLUTION": 14,
+                "FADER_MOTORIZED_COUNT": 8,
+                "FADER_TOUCH_SENSITIVE_COUNT": 8,
+                "SINGLE_MASTER_FADER": false,
+                "VPOT_ENCODER_COUNT": 8,
+                "VPOT_SW_COUNT": 8,
+                "SUPPORT_MPE": false,
+                "MPE_POLYPHONIC_AFTERTOUCH": false,
+                "SUPPORT_BREATH_CONTROL": false,
+                "FB_MOTORIZED_FADERS": true,
+                "FB_LCD_SCRIBBLE_STRIPS": true,
+                "MCU_CHARS_PER_CHANNEL": 7,
+                "LCD_CHANNEL_SPACER_CHAR": "|",
+                "LCD_GLOBAL_MESSAGE_SUPPORT": true,
+                "FB_LED_7_SEG_PARAM": "time_code",
+                "FB_LED_7_SEG_CHARS_COUNT": 10,
+                "MODE_TRACK_CONTROL": true,
+                "MODE_PAD_DRUM_MODE": false,
+                "SW_AUTOMATION": true,
+                "SW_AUTO_REC": true,
+                "SW_AUTO_WRITE": true,
+                "SW_AUTO_TOUCH": true,
+                "PLAY": true, "STOP": true, "REC": true,
+                "JOG_WHEEL": true,
+                "HID_KEYBOARD_EMULATION": true,
+                "FOLLOW_KEY_STATE_SUPPORT": true,
+                "TRIGGER_ASCII_KEY_COMBINATION": "Shift+S"
+            },
+            {
+                "DEVICE_ID": "nektar-lx25plus",
+                "DEVICE_NAME": "Impact LX25+",
+                "VENDOR": "Nektar",
+                "DOCUMENTATION_URL": "https://github.com",
+                "TOTAL_PHYSICAL_PORTS": 1,
+                "PHYSICAL_PORTS_LIST": ["USB_MIDI"],
+                "PROTOCOLS_HARDWARE": ["USB"],
+                "PROTOCOLS_TRANSPORT": ["Generic_MIDI"],
+                "PROTOCOLS_APPLICATION": ["CC#"],
+                "PROTOCOLS_NUMBER": 1,
+                "TOTAL_DAW_LAYERS": 1,
+                "TOTAL_PHYSICAL_CHANNELS": 1,
+                "FADER_BIT_RESOLUTION": 7,
+                "FADER_MOTORIZED_COUNT": 0,
+                "FADER_TOUCH_SENSITIVE_COUNT": 0,
+                "SINGLE_MASTER_FADER": false,
+                "VPOT_ENCODER_COUNT": 8,
+                "VPOT_SW_COUNT": 0,
+                "SUPPORT_MPE": false,
+                "MPE_POLYPHONIC_AFTERTOUCH": false,
+                "SUPPORT_BREATH_CONTROL": false,
+                "FB_MOTORIZED_FADERS": false,
+                "FB_LCD_SCRIBBLE_STRIPS": false,
+                "MCU_CHARS_PER_CHANNEL": 0,
+                "LCD_CHANNEL_SPACER_CHAR": "",
+                "LCD_GLOBAL_MESSAGE_SUPPORT": false,
+                "FB_LED_7_SEG_PARAM": "none",
+                "FB_LED_7_SEG_CHARS_COUNT": 3,
+                "MODE_TRACK_CONTROL": true,
+                "MODE_PAD_DRUM_MODE": true,
+                "SW_AUTOMATION": false,
+                "SW_AUTO_REC": false,
+                "SW_AUTO_WRITE": false,
+                "SW_AUTO_TOUCH": false,
+                "PLAY": true, "STOP": true, "REC": true,
+                "JOG_WHEEL": false,
+                "HID_KEYBOARD_EMULATION": false,
+                "FOLLOW_KEY_STATE_SUPPORT": false,
+                "TRIGGER_ASCII_KEY_COMBINATION": ""
+            },
+            {
+                "DEVICE_ID": "roli-seaboard-block",
+                "DEVICE_NAME": "Seaboard Block",
+                "VENDOR": "Roli",
+                "DOCUMENTATION_URL": "https://github.com",
+                "TOTAL_PHYSICAL_PORTS": 2,
+                "PHYSICAL_PORTS_LIST": ["USB_C", "Bluetooth"],
+                "PROTOCOLS_HARDWARE": ["USB", "Bluetooth"],
+                "PROTOCOLS_TRANSPORT": ["Generic_MIDI"],
+                "PROTOCOLS_APPLICATION": ["MPE"],
+                "PROTOCOLS_NUMBER": 1,
+                "TOTAL_DAW_LAYERS": 1,
+                "TOTAL_PHYSICAL_CHANNELS": 24,
+                "FADER_BIT_RESOLUTION": 14,
+                "FADER_MOTORIZED_COUNT": 0,
+                "FADER_TOUCH_SENSITIVE_COUNT": 0,
+                "SINGLE_MASTER_FADER": false,
+                "VPOT_ENCODER_COUNT": 0,
+                "VPOT_SW_COUNT": 0,
+                "SUPPORT_MPE": true,
+                "MPE_POLYPHONIC_AFTERTOUCH": true,
+                "SUPPORT_BREATH_CONTROL": false,
+                "FB_MOTORIZED_FADERS": false,
+                "FB_LCD_SCRIBBLE_STRIPS": false,
+                "MCU_CHARS_PER_CHANNEL": 0,
+                "LCD_CHANNEL_SPACER_CHAR": "",
+                "LCD_GLOBAL_MESSAGE_SUPPORT": false,
+                "FB_LED_7_SEG_PARAM": "none",
+                "FB_LED_7_SEG_CHARS_COUNT": 0,
+                "MODE_TRACK_CONTROL": false,
+                "MODE_PAD_DRUM_MODE": false,
+                "SW_AUTOMATION": false,
+                "SW_AUTO_REC": false,
+                "SW_AUTO_WRITE": false,
+                "SW_AUTO_TOUCH": false,
+                "PLAY": false, "STOP": false, "REC": false,
+                "JOG_WHEEL": false,
+                "HID_KEYBOARD_EMULATION": false,
+                "FOLLOW_KEY_STATE_SUPPORT": false,
+                "TRIGGER_ASCII_KEY_COMBINATION": ""
+            }
+        ];
+
+        // Инициализация стартового выбора
+        // selectedId = repository[0].DEVICE_ID;
+        selectedId = "";
+
+        // 6.2 Динамический рендеринг списка репозитория прямо из текстовых файлов папки map/
+        async function renderDeviceList() {
+            try {
+                // Делаем GET-запрос к нашему Node.js серверу за пулом файлов
+                const response = await fetch('/api/devices');
+                const txtFilesList = await response.json(); // Получаем массив имен файлов, например: ['ssl-nucleus-2.txt', 'impact-lx25.txt']
+                
+                const container = document.getElementById('device-list-container');
+                container.innerHTML = '';
+                
+                // Перебираем реальные текстовые файлы с диска
+                txtFilesList.forEach(fileName => {
+                    const item = document.createElement('div');
+                    
+                    // Выделяем чистое имя для ID (убираем расширение .txt)
+                    const devId = fileName.replace('.txt', '');
+                    
+                    // Автоматически определяем класс бренда по имени файла для водяного знака на 4K
+                    let brandClass = 'brand-generic';
+                    if (fileName.toLowerCase().includes('ssl') || fileName.toLowerCase().includes('nucleus')) brandClass = 'brand-ssl';
+                    if (fileName.toLowerCase().includes('nektar') || fileName.toLowerCase().includes('impact') || fileName.toLowerCase().includes('lx')) brandClass = 'brand-nektar';
+                    if (fileName.toLowerCase().includes('roli') || fileName.toLowerCase().includes('seaboard')) brandClass = 'brand-roli';
+                    if (fileName.toLowerCase().includes('mackie')) brandClass = 'brand-mackie';
+
+                    item.className = `device-item ${brandClass} ${devId === selectedId ? 'active' : ''}`;
+                    item.onclick = () => selectDevice(devId);
+                    
+                    item.innerHTML = `
+                        <div style="display:flex; flex-direction:column; width:100%; overflow:hidden; z-index:2;">
+                            <span style="font-weight:bold; font-size:11px; text-overflow:ellipsis; white-space:nowrap; overflow:hidden;">${devId.toUpperCase()}</span>
+                            <span style="font-size:9px; opacity:0.7; font-family:monospace; margin-top:2px;">${fileName}</span>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+                
+                document.getElementById('repo-stats').innerText = `Файлов в пуле: ${txtFilesList.length}`;
+            } catch (err) {
+                if (typeof logToTerminal === 'function') logToTerminal('ERROR', `Ошибка чтения папки map/: ${err.message}`);
+            }
+        }
+
+        // 6.3 Загрузка и парсинг конкретного .txt файла на бэкенде при выборе из списка
+        // 6.3 Загрузка и парсинг конкретного модуля на бэкенде
+        async function selectDevice(id) {
+            selectedId = id;
+            const items = document.querySelectorAll('.device-item');
+            items.forEach(item => item.classList.remove('active'));
+            
+            const activeItem = Array.from(items).find(item => item.innerHTML.toLowerCase().includes(`${id.toLowerCase()}.txt`));
+            if (activeItem) activeItem.classList.add('active');
+
+            try {
+                if (typeof logToTerminal === 'function') logToTerminal('INFO', `Запрос 3-колоночного парсинга: map/${id}.txt`);
+                
+                const response = await fetch(`/api/devices/${id}`);
+                if (!response.ok) throw new Error('Файл не найден на сервере');
+                const deviceData = await response.json(); 
+
+                originalDataBackup = JSON.parse(JSON.stringify(deviceData));
+                repository = deviceData;
+
+                clearDirtyStates();
+                
+                // Прямой маппинг: Ищем инпут на экране напрямую по цифровому ID из файла
+                Object.keys(deviceData).forEach(idKey => {
+                    const el = document.getElementById(`field_${idKey}`);
+                    if (!el) return; 
+                    
+                    const cell = deviceData[idKey];
+                    if (el.type === 'checkbox' || el.type === 'radio') {
+                        el.checked = !!cell.value;
+                    } else {
+                        el.value = Array.isArray(cell.value) ? cell.value.join(', ') : (cell.value !== null ? cell.value : '');
+                    }
+                });
+
+                if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+                if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates();
+                if (typeof logToTerminal === 'function') logToTerminal('SUCCESS', `Карта ${id}.txt успешно отображена по ID-меткам.`);
+            } catch (err) {
+                if (typeof logToTerminal === 'function') logToTerminal('ERROR', `Ошибка маппинга: ${err.message}`);
+            }
+        }
+
+        // 6.7 Прямое сохранение (перезапись) 3-колоночного .txt файла на сервере
+        async function exportToTXT() {
+            if (!repository || Object.keys(repository).length === 0) return;
+            const dev = repository; 
+
+            // Собираем измененные данные обратно, используя цифровые ID полей
+            Object.keys(dev).forEach(idKey => {
+                const el = document.getElementById(`field_${idKey}`);
+                if (!el) return;
+                
+                if (el.type === 'checkbox' || el.type === 'radio') {
+                    dev[idKey].value = el.checked;
+                } else {
+                    dev[idKey].value = el.value.trim();
+                }
+            });
+
+            try {
+                if (typeof logToTerminal === 'function') logToTerminal('INFO', `Отправка POST-запроса на запись map/${selectedId}.txt...`);
+                
+                const response = await fetch(`/api/devices/${selectedId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dev)
+                });
+
+                if (response.ok) {
+                    hasUnsavedChanges = false;
+                    originalDataBackup = JSON.parse(JSON.stringify(dev));
+                    if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates();
+                    if (typeof logToTerminal === 'function') logToTerminal('SUCCESS', `Модуль map/${selectedId}.txt перезаписан в 3-колоночном формате.`);
+                } else {
+                    throw new Error('Сервер отказал в записи.');
+                }
+            } catch (err) {
+                if (typeof logToTerminal === 'function') logToTerminal('ERROR', `Крах сохранения: ${err.message}`);
+            }
+        }
+
+        // Стек истории изменений
+        let undoStack = [];
+        let redoStack = [];
+        let isOperatingHistory = false; // Блокиратор зацикливания при откате
+
+        // Функция сохранения снимка состояния в историю перед изменением
+        function saveHistorySnapshot() {
+            if (isOperatingHistory) return;
+            
+            // Защита: так как мы храним в repository объект текущего прибора, бэкапим его
+            if (!repository || repository.length === 0) return;
+            const currentDev = repository[0];
+            if (!currentDev) return;
+            
+            // Записываем глубокую копию текущего прибора в стек отмены
+            undoStack.push(JSON.stringify(repository));
+            redoStack = []; // Сбрасываем стек Redo при новом действии пользователя
+            if (typeof updateUndoRedoButtons === 'function') updateUndoRedoButtons();
+        }
+
+        // Функция обновления доступности кнопок в шапке
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('btn-undo');
+            const redoBtn = document.getElementById('btn-redo');
+            if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+            if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+        }
+
+        // Модифицированная функция обновления простых полей
+        function updateField(key, value) {
+            if (!repository || repository.length === 0) return;
+            const dev = repository[0]; // В сетевом режиме берем текущий рабочий объект
+            if (dev) {
+                if (dev[key] !== value) {
+                    saveHistorySnapshot(); // Спасаем старое состояние в Undo
+                    
+                    dev[key] = value;
+                    hasUnsavedChanges = true;
+                    
+                    const inputEl = document.getElementById(`field_${key}`);
+                    if (inputEl) {
+                        const row = inputEl.closest('.form-row');
+                        if (row) row.classList.add('is-dirty');
+                    }
+                    if (key === 'DEVICE_NAME' || key === 'DEVICE_ID') renderDeviceList();
+                    recalculateDirtyStates(); // Пересчитываем подсветку "на лету"
+                }
+            }
+        }
+
+        // Модифицированная функция обновления массивов
+        function updateArrayField(key, value) {
+            if (!repository || repository.length === 0) return;
+            const dev = repository[0];
+            if (dev) {
+                saveHistorySnapshot(); // Спасаем в Undo
+                
+                dev[key] = value.split(',').map(s => s.trim()).filter(s => s !== '');
+                hasUnsavedChanges = true;
+
+                const inputEl = document.getElementById(`field_${key}`);
+                if (inputEl) {
+                    const row = inputEl.closest('.form-row');
+                    if (row) row.classList.add('is-dirty');
+                }
+                recalculateDirtyStates();
+            }
+        }
+
+        // Функция КНОПКИ UNDO (Откат назад) - СИНТАКСИС ИСПРАВЛЕН И ЗАКРЫТ
+        function undoAction() {
+            if (undoStack.length === 0) return;
+            
+            // Переносим текущее состояние всего репозитория в стек повтора (Redo)
+            redoStack.push(JSON.stringify(repository));
+            
+            // Восстанавливаем состояние из стека отмены
+            isOperatingHistory = true;
+            repository = JSON.parse(undoStack.pop());
+            
+            // Накатываем историю на форму
+            if (typeof refreshFormFields === 'function' && repository.length > 0) {
+                refreshFormFields(repository[0]);
+            }
+            isOperatingHistory = false;
+            recalculateDirtyStates();
+        } // <-- ЭТА СКОБКА СПАСАЕТ ВЕСЬ ФАЙЛ ОТ КРАХА!
+
+        // Функция КНОПКИ REDO (Шаг вперед)
+        function redoAction() {
+            if (redoStack.length === 0) return;
+            
+            undoStack.push(JSON.stringify(repository));
+            
+            isOperatingHistory = true;
+            repository = JSON.parse(redoStack.pop());
+            
+            if (typeof refreshFormFields === 'function' && repository.length > 0) {
+                refreshFormFields(repository[0]);
+            }
+            isOperatingHistory = false;
+            recalculateDirtyStates();
+        }
+
+        // 2.1 Инициализация глубокого эталонного бэкапа для Default Condition (Глобальный объект)
+        let originalDataBackup = {};
+
+        // 2.2 Интеллектуальный расчет dirty-состояний полей формы (Сверка с дефолтом для 4K)
+        function recalculateDirtyStates() {
+            if (!repository || repository.length === 0 || !originalDataBackup) return;
+            
+            const dev = repository[0];       // Текущие правки в памяти
+            const base = originalDataBackup; // Чистый эталон с диска сервера
+            if (!dev || !base) return;
+
+            hasUnsavedChanges = false;
+            Object.keys(dev).forEach(key => {
+                const inputEl = document.getElementById(`field_${key}`);
+                if (!inputEl) return;
+
+                const row = inputEl.closest('.form-row');
+                if (!row) return;
+
+                // Сверяем текущее значение в оперативной памяти с бэкапом
+                let isEdited = false;
+                if (Array.isArray(dev[key])) {
+                    const currentStr = dev[key].join(', ');
+                    const baseStr = Array.isArray(base[key]) ? base[key].join(', ') : '';
+                    isEdited = currentStr !== baseStr;
+                } else {
+                    const currentVal = dev[key] !== null ? dev[key] : '';
+                    const baseVal = base[key] !== null ? base[key] : '';
+                    isEdited = String(currentVal) !== String(baseVal);
+                }
+
+                // Включаем или выключаем янтарную 4K подсветку строки
+                if (isEdited) {
+                    row.classList.add('is-dirty');
+                    hasUnsavedChanges = true; // Если хоть одно поле изменено — сессия "грязная"
+                } else {
+                    row.classList.remove('is-dirty');
+                }
+            });
+            updateUndoRedoButtons();
+        }
+
+        // 2.3 Интегрируем перерасчет "на лету" в функции ввода данных
+        const originalUpdateField = updateField;
+        updateField = function(key, value) {
+            originalUpdateField(key, value);
+            if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates();
+        };
+
+        const originalUpdateArrayField = updateArrayField;
+        updateArrayField = function(key, value) {
+            originalUpdateArrayField(key, value);
+            if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates();
+        };
+
+        // 2.4 Вспомогательный накат данных на форму (вызывается при Undo/Redo)
+        function refreshFormFields(dev) {
+            if (!dev) return;
+            clearDirtyStates(); // Смываем старую янтарную подсветку 4K строк
+            
+            Object.keys(dev).forEach(key => {
+                const el = document.getElementById(`field_${key}`);
+                if (!el) return;
+                if (el.type === 'checkbox') {
+                    el.checked = !!dev[key];
+                } else {
+                    el.value = Array.isArray(dev[key]) ? dev[key].join(', ') : (dev[key] !== null ? dev[key] : '');
+                }
+            });
+            updateUndoRedoButtons();
+        }
+
+        // 2.5 При успешном POST-сохранении фиксируем новый эталон Default Condition
+        const baseExportToTXT = exportToTXT;
+        exportToTXT = function() {
+            baseExportToTXT();
+            // Текущее состояние объекта памяти становится новым дефолтом для сброса подсветки
+            originalDataBackup = JSON.parse(JSON.stringify(repository)); 
+            if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates();
+        };
+
+        // Сброс истории при смене или полной перезагрузке файла
+        function resetHistoryStacks() {
+            undoStack = [];
+            redoStack = [];
+            updateUndoRedoButtons();
+        }
+
+        // 6.6 Клонирование выбранного блока (Сбор данных прямо из полей формы)
+        async function cloneDevice() {
+            // Собираем объект на основе того, что сейчас введено в поля формы
+            const clone = {};
+            const inputs = document.querySelectorAll('[id^="field_"]');
+            
+            inputs.forEach(el => {
+                const key = el.id.replace('field_', '');
+                if (el.type === 'checkbox') {
+                    clone[key] = el.checked;
+                } else {
+                    clone[key] = el.value.trim();
+                }
+            });
+
+            // Защита: если DEVICE_ID пустой, берем текущий selectedId или дефолт
+            const baseId = clone.DEVICE_ID || selectedId || "generic-controller";
+            const baseName = clone.DEVICE_NAME || "Generic Controller";
+
+            // Генерируем красивый, читаемый ID для нового файла .txt
+            const shortTimestamp = Date.now().toString().slice(-4);
+            clone.DEVICE_ID = `${baseId}-clone-${shortTimestamp}`.toLowerCase().replace('.txt', '');
+            clone.DEVICE_NAME = `${baseName} (Clone)`;
+
+            try {
+                if (typeof logToTerminal === 'function') logToTerminal('INFO', `Создание физического текстового клона: map/${clone.DEVICE_ID}.txt...`);
+                
+                const response = await fetch(`/api/devices/${clone.DEVICE_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(clone)
+                });
+
+                if (response.ok) {
+                    if (typeof logToTerminal === 'function') logToTerminal('SUCCESS', `Модуль map/${clone.DEVICE_ID}.txt успешно сгенерирован.`);
+                    await renderDeviceList(); // Перестраиваем панель
+                    selectedId = clone.DEVICE_ID;
+                    await selectDevice(selectedId); // Фокус на новый клон
+                } else {
+                    throw new Error('Бэкенд отклонил запись клона.');
+                }
+            } catch (err) {
+                if (typeof logToTerminal === 'function') logToTerminal('ERROR', `Крах клонирования: ${err.message}`);
+            }
+        }
+
+        // 6.7 Прямое сохранение (перезапись) .txt файла в папку map/ на сервере без скачивания в браузер
+        async function exportToTXT() {
+            // Защита: если репозиторий пуст, выходим
+            if (!repository || Object.keys(repository).length === 0) return;
+            const dev = repository; // В сетевом режиме берем текущий рабочий объект из буфера
+
+            // Пробегаемся по форме, чтобы вытащить актуальные измененные данные из инпутов
+            Object.keys(dev).forEach(key => {
+                const el = document.getElementById(`field_${key}`);
+                if (!el) return;
+                if (el.type === 'checkbox') {
+                    dev[key] = el.checked;
+                } else {
+                    dev[key] = el.value.trim(); // Убираем случайные пробелы по краям
+                }
+            });
+
+            try {
+                if (typeof logToTerminal === 'function') logToTerminal('INFO', `Отправка POST-запроса на перезапись map/${selectedId}.txt...`);
+                
+                // Шлем чистый selectedId без склейки расширения .txt (сервер Rserver.js сам его допишет)
+                const response = await fetch(`/api/devices/${selectedId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dev)
+                });
+
+                if (response.ok) {
+                    hasUnsavedChanges = false; // Снимаем защиту beforeunload от случайного закрытия
+                    
+                    // Фиксируем текущее состояние объекта как новый дефолт для сброса янтарной подсветки правок
+                    originalDataBackup = JSON.parse(JSON.stringify(dev)); 
+                    
+                    if (typeof recalculateDirtyStates === 'function') recalculateDirtyStates(); // Гасим 4K подсветку строк
+                    
+                    if (typeof logToTerminal === 'function') logToTerminal('SUCCESS', `Файл map/${selectedId}.txt успешно обновлен на жестком диске Мака.`);
+                } else {
+                    throw new Error('Сервер ответил отказом на запись файла.');
+                }
+            } catch (err) {
+                if (typeof logToTerminal === 'function') logToTerminal('ERROR', `Крах записи на сервер: ${err.message}`);
+            }
+        }
+
+        // 6.8 Стартовая автоматическая загрузка первого файла при запуске (Исправлено)
+        async function initWebInterface() {
+            try {
+                await renderDeviceList();
+                const deviceItems = document.querySelectorAll('.device-item');
+                
+                if (deviceItems && deviceItems.length > 0) {
+                    // Берем самый первый элемент из списка
+                    const firstItem = deviceItems[0];
+                    // Вытаскиваем ID из атрибута или структуры данных
+                    const spanEl = firstItem.querySelector('span:last-child');
+                    if (spanEl) {
+                        const firstFileName = spanEl.innerText.trim();
+                        const firstDevId = firstFileName.replace('.txt', '');
+                        selectedId = firstDevId;
+                        await selectDevice(firstDevId);
+                    }
+                } else {
+                    if (typeof logToTerminal === 'function') logToTerminal('ERROR', 'Папка map/ пуста. Сгенерированы дефолтные пресеты.');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        // Подключаемся к живому потоку консоли Node.js
+        const eventSource = new EventSource('/api/logs');
+        const loggerBlock = document.getElementById('cli-logger-stream');
+
+        eventSource.onmessage = function(e) {
+            if (loggerBlock.innerHTML.includes('Connecting')) loggerBlock.innerHTML = '';
+            loggerBlock.innerHTML += e.data + '\n';
+            loggerBlock.scrollTop = loggerBlock.scrollHeight; // Автопрокрутка вниз
+        };
+        // ЗАПУСК: Инициализируем всю сквозную цепочку событий один раз при старте
+        initWebInterface();
+    </script>
+</body>
+</html>
+
